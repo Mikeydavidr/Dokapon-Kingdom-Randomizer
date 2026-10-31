@@ -41,6 +41,28 @@ namespace DokaponKingdomRandomizer
         // Prank Names
         public static int[] LocPrankNames = new int[2] { 0x4B73C, 0x4B8EC };
 
+        // Weapon Effects (DkkStm.exe, current build only)
+        // The game picks a weapon's special effect with a switch on its ID (IDs 13-67), and each effect rolls its proc chance
+        // against a number compiled into the code. The weapon records' chance bytes are never read.
+        // The exe patch, written as a ConnectModInstaller hex mod, widens the switch to all 67 weapons, moves the ID -> effect
+        // table into free space at the end of the .text section, and makes each effect's first roll compare against the
+        // weapon record's chance byte (tail byte 2). Follow-up rolls (only made after the first one procs) keep their numbers.
+        // Effect cases 0-21 belong to these weapon IDs in the unmodified game. Case 22 is no effect.
+        private static readonly byte[] EffectSourceWeapon = { 13, 18, 23, 24, 26, 33, 34, 37, 43, 50, 53, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67 };
+        // The proc chance each case's code used, in percent: a roll of 0-100 procs when it's below the chance. Case 11 never rolls.
+        private static readonly byte[] EffectChance = { 12, 12, 12, 12, 12, 12, 12, 25, 12, 8, 12, 100, 12, 12, 12, 25, 12, 12, 12, 25, 25, 50 };
+        private const byte EffectNone = 22;
+        // File offsets of each case's first roll ("sub ecx, eax; cmp cx, imm8"), -1 if it has none
+        private static readonly int[] EffectRollSites = { 0x1782D8, 0x17833D, 0x17867B, 0x1783A2, 0x178616, 0x1789B7, 0x1784D1, 0x1787B5, 0x178BC2, 0x178279, 0x1785B1, -1, 0x1781F0, 0x178407, 0x17854C, 0x1788B6, 0x178CC3, 0x17846C, 0x178AB8, 0x178159, 0x178DC4, 0x178EC5 };
+        // Where the patch puts things: the .text section's VirtualSize field, the new table and the roll helper (file offsets and RVAs)
+        private const int ExeTextVirtualSize = 0x268, ExeTextRawSize = 0x44B600;
+        private const int ExeEffectTable = 0x44B820, ExeEffectTableRva = 0x44C420;
+        private const int ExeRollHelper = 0x44B870, ExeRollHelperRva = 0x44C470;
+        // The switch head: the "- 13" of "add eax, -0xd", the 0x36 of "cmp eax, 0x36", and the table address in the movzx
+        private const int ExeSwitchBias = 0x1780B7, ExeSwitchLimit = 0x1780BA, ExeSwitchTable = 0x1780D7;
+        // sub ecx, eax / mov rax, [rsi + 0x18] (the attacker's weapon struct) / movzx eax, byte [rax + 0x139] (its chance byte) / cmp cx, ax / ret
+        private static readonly byte[] RollHelper = { 0x29, 0xC1, 0x48, 0x8B, 0x46, 0x18, 0x0F, 0xB6, 0x80, 0x39, 0x01, 0x00, 0x00, 0x66, 0x39, 0xC1, 0xC3 };
+
         // Equipment table regexes (shared by RandomizeEquip and ShuffleEquip)
         // I'm not going to explain the Regex here, it's complicated.
         private static readonly Regex rgx_weapons = new("(?s)(\\x58\\x00\\x00\\x00)([\\s\\S])([\\s\\S])([\\s\\S]{2})([0-9A-Za-z\\+\\'\\x20\\-]+)(\\x00\\x00?\\x00?\\x00?)([\\s\\S]{4})([\\s\\S]{4})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})");
@@ -145,6 +167,8 @@ namespace DokaponKingdomRandomizer
             float randoEquipVarianceWeapons = 0.0f;
             float randoEquipVarianceShields = 0.0f;
             float randoEquipVarianceAccessories = 0.0f;
+            int randoEffects = 0;
+            bool randoEffectsChance = false;
 
             // Magic
             bool randoMagic = false;
@@ -241,6 +265,35 @@ namespace DokaponKingdomRandomizer
                 inptest = bool.TryParse(inp, out bool ssp);
                 if (inp == null || !inptest) ssp = false;
                 shuffleSpecial = ssp;
+            }
+
+            // Weapon Effects (patches the exe, so only for the build the patch was made for)
+            if (version == 1)
+            {
+                Console.WriteLine("""
+
+                Weapon special effects? These need the exe patch written to a Hex folder (install it with ConnectModInstaller along with the data).
+                (0) unchanged, no exe patch
+                (1) effects follow their weapon: with the equipment shuffle on, a weapon's effect moves with its name
+                (2) shuffle the existing effects across all weapons
+                (3) give every weapon a random effect>
+                """);
+                inp = Console.ReadLine();
+                inptest = int.TryParse(inp, out int efm);
+                if (inp == null || !inptest || efm < 0 || efm > 3) efm = 0;
+                randoEffects = efm;
+
+                if (efm > 0)
+                {
+                    Console.WriteLine("""
+
+                    Randomize the effects' proc chances (5% to 50%)? If false, each effect keeps the chance it has in the base game. [true or false]>
+                    """);
+                    inp = Console.ReadLine();
+                    inptest = bool.TryParse(inp, out bool efc);
+                    if (inp == null || !inptest) efc = false;
+                    randoEffectsChance = efc;
+                }
             }
 
             // Equipment Randomizer Toggle
@@ -669,6 +722,8 @@ namespace DokaponKingdomRandomizer
                 outputLog.WriteLine(" Allow Exploitables: " + randoExploits);
                 outputLog.WriteLine(" Randomized Prank Names: " + randoPrankNames);
                 outputLog.WriteLine(" Randomized Prices: " + randoPrices);
+                outputLog.WriteLine(" Weapon Effects: " + new[] { "Unchanged", "Follow Their Weapon", "Shuffled", "Random" }[randoEffects]);
+                outputLog.WriteLine(" Randomized Effect Chances: " + randoEffectsChance);
                 outputLog.WriteLine("#########################################");
                 outputLog.WriteLine(" Seriously Randomized Equipment: " + randoEquipSerious);
                 outputLog.WriteLine(" Seriously Randomized Magic: " + randoMagicSerious);
@@ -730,11 +785,15 @@ namespace DokaponKingdomRandomizer
             // Mention that it's done.
             Console.WriteLine("Done.");
 
+            // The weapon names before anything moves them, so the effects can follow a shuffled weapon
+            List<string> weaponNames = ReadTable(fileData, WeaponTable(version), out _, out _)?.Select(r => r.Name).ToList() ?? new();
+
             // Actual Randomizer Functions
             fileData = shuffleItems ? ShuffleItems(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial, shuffleConsumables }) : fileData;
             fileData = randoItems ? RandomizeItems(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoExploits, randoOutputLog }) : fileData;
             fileData = shuffleEquip ? ShuffleEquip(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial }) : fileData;
             fileData = randoEquip ? RandomizeEquip(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoEquipSerious, randoEquipMultiplier, randoEquipVarianceWeapons, randoEquipVarianceShields, randoEquipVarianceAccessories, randoOutputLog }) : fileData;
+            fileData = randoEffects > 0 ? RandomizeWeaponEffects(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, randoEffects, randoEffectsChance, weaponNames }) : fileData;
             fileData = shuffleMagic ? ShuffleMagic(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial }) : fileData;
             fileData = randoMagic ? RandomizeMagic(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoMagicSerious, randoMagicMultiplier, randoMagicVarianceOffense, randoMagicVarianceDefense, randoMagicVarianceField, randoOutputLog }) : fileData;
             fileData = randoClass ? RandomizeClasses(version, filePath, fileData, settings: new List<object>() { randoSeed, randoClassSerious, randoClassMultiplier, randoClassVarianceBase, randoClassVarianceLevelUp, randoClassVarianceSalary, randoClassVarianceCapacity, randoOutputLog }) : fileData;
@@ -1909,11 +1968,153 @@ namespace DokaponKingdomRandomizer
         {
             ShuffleTable[] tables = new ShuffleTable[]
             {
-                new("WEAPON", LocStatsWeapons[version], 0x58, 1, "SII", "IIII" + new string('S', 16), 4),
+                WeaponTable(version),
                 new("SHIELD", LocStatsShields[version], 0x5E, 1, "SII", "IIII" + new string('S', 16), 4),
                 new("ACCESSORY", LocStatsAccessories[version], 0x64, 1, "SII", "IIII" + new string('S', 16) + "IIII", 4)
             };
             return ShuffleTables("Equipment", tables, 0, filePath, fileData, settings);
+        }
+
+        // The weapon table as the shuffler sees it. Moves: type, name, ability data. Stays: price, stats, sort order.
+        private static ShuffleTable WeaponTable(int version) => new("WEAPON", LocStatsWeapons[version], 0x58, 1, "SII", "IIII" + new string('S', 16), 4);
+
+        // Weapon Effects function
+        // settings: seed, detailed output log, mode (1 follow their weapon, 2 shuffle, 3 random), randomize chances, weapon names before any shuffle.
+        // Sets each weapon's chance byte here and writes the exe patch, which carries the ID -> effect table, to a Hex folder.
+        public static byte[] RandomizeWeaponEffects(int version, string filePath, byte[] fileData, List<object> settings)
+        {
+            // If you don't supply the right settings, just fallback to original data.
+            if (settings.Count() != 5)
+            {
+                Console.WriteLine("Error: RandomizeWeaponEffects() -> settings doesn't have 5 values.");
+                return fileData;
+            }
+
+            Console.WriteLine("Randomizing Weapon Effects...");
+
+            Random RNG = new((int)settings[0] + 3);
+            int mode = (int)settings[2];
+            bool randomChance = (bool)settings[3];
+            List<string> originalNames = (List<string>)settings[4];
+
+            // The patch only fits the current exe
+            List<TableRecord>? records = ReadTable(fileData, WeaponTable(version), out int tableStart, out _);
+            if (version != 1 || records == null || records.Count != 67)
+            {
+                Console.WriteLine("Couldn't recognize the weapon table layout, skipping weapon effects.");
+                return fileData;
+            }
+
+            // The base game's effect for each weapon ID
+            byte[] original = Enumerable.Repeat(EffectNone, 67).ToArray();
+            for (int c = 0; c < EffectSourceWeapon.Length; c++) { original[EffectSourceWeapon[c] - 1] = (byte)c; }
+
+            byte[] effects = new byte[67];
+            switch (mode)
+            {
+                // Each slot gets the effect of the weapon whose name it carries now
+                case 1:
+                    for (int i = 0; i < 67; i++)
+                    {
+                        int id = originalNames.IndexOf(records[i].Name);
+                        effects[i] = id < 0 ? EffectNone : original[id];
+                    }
+                    break;
+                // Deal the base game's effects (and its weapons without one) out to different weapons
+                case 2:
+                    effects = original.ToArray();
+                    for (int i = effects.Length - 1; i > 0; i--)
+                    {
+                        int j = RNG.Next(i + 1);
+                        (effects[i], effects[j]) = (effects[j], effects[i]);
+                    }
+                    break;
+                // Every weapon gets an effect of its own
+                default:
+                    for (int i = 0; i < 67; i++) { effects[i] = (byte)RNG.Next(0, EffectNone); }
+                    break;
+            }
+
+            // Write the chance bytes, which the patched exe now reads. Weapons without an effect keep theirs, nothing uses it.
+            byte[] chances = new byte[67];
+            int o = tableStart;
+            for (int i = 0; i < 67; i++)
+            {
+                TableRecord r = records[i];
+                int at = o + r.Head.Length + r.Prefix.Length + r.NameField.Length + 2;
+                byte e = effects[i];
+                if (e != EffectNone)
+                {
+                    // Effects without a roll always happen, so their chance stays at 100
+                    fileData[at] = randomChance && EffectRollSites[e] >= 0 ? (byte)RNG.Next(5, 51) : EffectChance[e];
+                }
+                chances[i] = fileData[at];
+                o += r.Head.Length + r.Prefix.Length + r.NameField.Length + r.Tail.Length;
+            }
+
+            string hexPath = WriteEffectsHex(filePath, effects);
+            Console.WriteLine("Wrote the exe patch to " + hexPath + ".");
+            Console.WriteLine("Install it from your mod's Hex folder with ConnectModInstaller. It only fits the current Steam build of the game.");
+            Console.WriteLine("Shop descriptions still describe each weapon's original effect.");
+
+            // Write to output log, if it exists
+            if ((bool)settings[1])
+            {
+                using (StreamWriter outputLog = File.AppendText(filePath + "_" + (int)settings[0] + ".txt"))
+                {
+                    outputLog.WriteLine("\n\n == WEAPON EFFECTS (weapon: effect, chance) == ");
+                    for (int i = 0; i < 67; i++)
+                    {
+                        byte e = effects[i];
+                        string effect = e == EffectNone ? "none" : originalNames.ElementAtOrDefault(EffectSourceWeapon[e] - 1) + "'s effect, " + (EffectRollSites[e] >= 0 ? chances[i] + "%" : "always");
+                        outputLog.WriteLine("ID #" + (i + 1) + " " + records[i].Name + ": " + effect);
+                    }
+                    outputLog.Close();
+                }
+            }
+
+            Console.WriteLine("Done.");
+
+            return fileData;
+        }
+
+        // Write the exe patch as a ConnectModInstaller hex mod: [8 byte file offset][8 byte length][bytes], both numbers big-endian.
+        // It goes in a Hex folder next to the mod's Assets folder, or next to the data file if that isn't in one.
+        private static string WriteEffectsHex(string filePath, byte[] effects)
+        {
+            List<(int Offset, byte[] Data)> edits = new()
+            {
+                (ExeTextVirtualSize, BitConverter.GetBytes(ExeTextRawSize)), // map the zero padding at the end of .text
+                (ExeEffectTable, effects),
+                (ExeRollHelper, RollHelper),
+                (ExeSwitchBias, new byte[] { 0xFF }),                     // add eax, -1: index the table by ID - 1
+                (ExeSwitchLimit, new byte[] { 0x42 }),                    // cmp eax, 0x42: up to ID 67
+                (ExeSwitchTable, BitConverter.GetBytes(ExeEffectTableRva))
+            };
+            foreach (int site in EffectRollSites.Where(s => s >= 0))
+            {
+                // call the helper (file offset + 0xC00 = RVA inside .text), then a nop over the rest of the old cmp
+                byte[] call = new byte[6];
+                call[0] = 0xE8;
+                BitConverter.GetBytes(ExeRollHelperRva - (site + 0xC00 + 5)).CopyTo(call, 1);
+                call[5] = 0x90;
+                edits.Add((site, call));
+            }
+
+            string dir = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
+            string hexDir = string.Equals(Path.GetFileName(dir), "Assets", StringComparison.OrdinalIgnoreCase) ? Path.Combine(Path.GetDirectoryName(dir)!, "Hex") : dir;
+            Directory.CreateDirectory(hexDir);
+            string hexPath = Path.Combine(hexDir, "weapon_effects.hex");
+            using (BinaryWriter writer = new(File.Create(hexPath)))
+            {
+                foreach ((int offset, byte[] data) in edits)
+                {
+                    writer.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness((long)offset));
+                    writer.Write(System.Buffers.Binary.BinaryPrimitives.ReverseEndianness((long)data.Length));
+                    writer.Write(data);
+                }
+            }
+            return hexPath;
         }
 
         // Magic Shuffler function
