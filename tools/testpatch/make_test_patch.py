@@ -10,9 +10,10 @@ import struct
 import sys
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[2]
-assets = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "assets"
-out = Path(sys.argv[2]) if len(sys.argv) > 2 else root / "TestMod"
+# game files live outside the repo, in a Dokapon-Workspace folder next to it
+workspace = Path(__file__).resolve().parents[3] / "Dokapon-Workspace"
+assets = Path(sys.argv[1]) if len(sys.argv) > 1 else workspace / "assets"
+out = Path(sys.argv[2]) if len(sys.argv) > 2 else workspace / "TestMod"
 if assets.resolve() in out.resolve().parents or out.resolve() == assets.resolve():
     sys.exit("refusing to write inside the assets folder")
 (out / "Assets").mkdir(parents=True, exist_ok=True)
