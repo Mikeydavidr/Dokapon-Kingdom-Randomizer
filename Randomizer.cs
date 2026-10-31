@@ -4,40 +4,48 @@ namespace DokaponKingdomRandomizer
 {
     internal class Randomizer
     {
-        // Data Offsets
-        // Wii-based GAME.PAC offsets are on the left
-        // PC-based stageBase_EN.DAT offsets are on the right
+        // Data Offsets (stageBase_EN.DAT, Steam/PC only)
+        // [0] = builds before the October 2025 update (the Chinese language patch)
+        // [1] = the current build. The update re-encoded some text as UTF-8, so every offset after the first few KB moved.
+        // The two builds are told apart by file size, see GameBuildBySize.
 
         // Version Number
         private static string RandomVersion = "3.0";
 
         // Base File
-        public static string[] FileBase = new string[2] { "GAME.PAC", "stageBase_EN.DAT" };
+        public static string FileBase = "stageBase_EN.DAT";
+        public static readonly long[] FileSizeByBuild = new long[2] { 725136, 725600 };
 
         // Shop Items
-        public static int[] LocShopEquipment = new int[2] { 0x0B1C9844, 0x5054 };
-        public static int[] LocShopConsumables = new int[2] { 0x0B1C98F0, 0x5100 };
-        public static int[] LocShopMagic = new int[2] { 0x0B1C9994, 0x51A4 };
+        public static int[] LocShopEquipment = new int[2] { 0x5054, 0x5068 };
+        public static int[] LocShopConsumables = new int[2] { 0x5100, 0x5114 };
+        public static int[] LocShopMagic = new int[2] { 0x51A4, 0x51B8 };
         // Drop Items
-        public static int[] LocDropsMonsters = new int[2] { 0x0B1E0CD8, 0x01C500 };
-        public static int[] LocDropsSpaces = new int[2] { 0x0B1C84CC, 0x3CDC };
+        public static int[] LocDropsMonsters = new int[2] { 0x1C500, 0x1C58C };
+        public static int[] LocDropsSpaces = new int[2] { 0x3CDC, 0x3CF0 };
         // Item Stats
-        public static int[] LocStatsWeapons = new int[2] { 0x0B1CCC08, 0x83CC };
-        public static int[] LocStatsShields = new int[2] { 0x0B1CF380, 0xAB48 };
-        public static int[] LocStatsAccessories = new int[2] { 0x0B1D2780, 0xBDAC };
-        public static int[] LocStatsConsumables = new int[2] { 0x0B1D3020, 0xDF7C };
-        public static int[] LocStatsGifts = new int[2] { 0x0B1D3020, 0xE760 };
-        public static int[] LocStatsMagicOffense = new int[2] { 0x0B1D945C, 0x014C4C };
-        public static int[] LocStatsMagicDefense = new int[2] { 0x0B1D970C, 0x014EFC };
-        public static int[] LocStatsMagicField = new int[2] { 0x0B1D9964, 0x015150 };
+        public static int[] LocStatsWeapons = new int[2] { 0x83CC, 0x83F0 };
+        public static int[] LocStatsShields = new int[2] { 0xAB48, 0xAB7C };
+        public static int[] LocStatsAccessories = new int[2] { 0xBDAC, 0xBDE4 };
+        public static int[] LocStatsConsumables = new int[2] { 0xDF7C, 0xDFB4 };
+        public static int[] LocStatsGifts = new int[2] { 0xE760, 0xE7A0 };
+        public static int[] LocStatsMagicOffense = new int[2] { 0x14C4C, 0x14C94 };
+        public static int[] LocStatsMagicDefense = new int[2] { 0x14EFC, 0x14F44 };
+        public static int[] LocStatsMagicField = new int[2] { 0x15150, 0x15198 };
         // Unit Stats
-        public static int[] LocStatsClassesBase = new int[2] { 0x0B1DCCAC, 0x0184A8 };
-        public static int[] LocStatsClassesLevelups = new int[2] { 0x0B1DCE0C, 0x018608 };
-        public static int[] LocStatsClassesSalary = new int[2] { 0x0B1DD20C, 0x018A08 };
-        public static int[] LocStatsClassesCapacity = new int[2] { 0x0B1DD0AC, 0x188A8 };
-        public static int[] LocStatsMonsters = new int[2] { 0x0B1DF888, 0x01B0B0 };
+        public static int[] LocStatsClassesBase = new int[2] { 0x184A8, 0x18508 };
+        public static int[] LocStatsClassesLevelups = new int[2] { 0x18608, 0x18668 };
+        public static int[] LocStatsClassesSalary = new int[2] { 0x18A08, 0x18A68 };
+        public static int[] LocStatsClassesCapacity = new int[2] { 0x188A8, 0x18908 };
+        public static int[] LocStatsMonsters = new int[2] { 0x1B0B0, 0x1B13C };
         // Prank Names
-        public static int[] LocPrankNames = new int[2] { -1, 0x04B73C };
+        public static int[] LocPrankNames = new int[2] { 0x4B73C, 0x4B8EC };
+
+        // Equipment table regexes (shared by RandomizeEquip and ShuffleEquip)
+        // I'm not going to explain the Regex here, it's complicated.
+        private static readonly Regex rgx_weapons = new("(?s)(\\x58\\x00\\x00\\x00)([\\s\\S])([\\s\\S])([\\s\\S]{2})([0-9A-Za-z\\+\\'\\x20\\-]+)(\\x00\\x00?\\x00?\\x00?)([\\s\\S]{4})([\\s\\S]{4})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})");
+        private static readonly Regex rgx_shields = new("(?s)(\\^[\\x00\\s]{3})([\\x01-\\x28])([\\s\\S])([\\s\\S]{2})((Demon Shield)[\\x00\\s\\S]{6,10}|([0-9A-Za-z\\+\\'\\-]+( Guard| Shield)?)([\\x00\\s]{8}|[\\x00\\s]{7}|[\\x00\\s]{6}|[\\x00\\s]{3}[\\x01-\\xff][\\x00\\s]{2}|[\\x00\\s]{1,3}[\\x01-\\xff]{2}[\\x00\\s]{2}|[\\x00\\s][\\x01-\\xff]{2}[\\x00\\s]{2}|[\\x00\\s]{0,3}[\\S\\x01-\\xFF]{0,3}?[\\x00\\s]{0,3}))([\\x00\\s\\S]{3}[\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S]{2})");
+        private static readonly Regex rgx_accessories = new("(?s)(\\x64\\x00\\x00\\x00)([\\s\\S])([\\s\\S])([\\s\\S]{2})([0-9A-Za-z\\+\\'\\x20\\-]+)(\\x00{0,4}(\\x64\\x00|[\\s\\S]{2})[\\x00\\s\\S]{0,2})([\\s\\S]{4})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{4})");
 
         // Main program loop
         static void Main()
@@ -45,7 +53,7 @@ namespace DokaponKingdomRandomizer
             // Run the program until manually closed
             while (true)
             {
-                // Display introduction message and ask for version
+                // Display introduction message
                 Console.WriteLine("""
                  -------------------------------------
                  Dokapon Kingdom Randomizer by X Kirby
@@ -53,26 +61,21 @@ namespace DokaponKingdomRandomizer
                 """ + RandomVersion + "\n" +
                 """
                  -------------------------------------
-                
-                Wii (0) or PC (1)? Use any other value to shutdown.> 
                 """);
-
-                // Check game version, break program if no matching version accepted
-                string? inp = Console.ReadLine();
-                bool inptest = int.TryParse(inp, out int ver);
-                if (inp == null || !inptest || ver < 0 || ver > 1) break;
 
                 // Grab the file path of a necessary file
                 // If blank, use the program's main folder.
                 Console.WriteLine("""
                     Type in the path to your original 
                     """
-                    + FileBase[ver] +
+                    + FileBase +
                     """
-                     file.> 
+                     file. Enter nothing to use the program's folder, or type exit to shut down.> 
                     """);
                 string? pth = Console.ReadLine();
-                pth = (pth == null || pth.Length == 0) ? AppContext.BaseDirectory + FileBase[ver] : pth;
+                if (pth == null || pth.Trim().ToLower() == "exit") break;
+                pth = pth.Trim().Trim('"');
+                pth = pth.Length == 0 ? AppContext.BaseDirectory + FileBase : pth;
 
                 // At this point, it should check if the file exists and if it doesn't find it, close the program.
                 if (!File.Exists(pth))
@@ -85,14 +88,27 @@ namespace DokaponKingdomRandomizer
                     break;
                 }
 
+                // The October 2025 update moved the data around, so work out which build this file is from.
+                int ver = Array.IndexOf(FileSizeByBuild, new FileInfo(pth).Length);
+                if (ver < 0)
+                {
+                    Console.WriteLine("""
+                        This file's size matches neither known build of the game.
+                        Is it from before the October 2025 update (0) or the current game (1)? Any other value shuts down.> 
+                        """);
+                    bool vtest = int.TryParse(Console.ReadLine(), out ver);
+                    if (!vtest || ver < 0 || ver > 1) break;
+                }
+                Console.WriteLine(ver == 0 ? "Detected the build from before the October 2025 update." : "Detected the current build.");
+
                 // Ask to make a backup, which is recommended. Just in case.
                 Console.WriteLine("""
                     Make a backup of your game file? This might take a while. (0) for no, (1) for yes.> 
                     """);
 
                 // Check backup value, but this time don't break the program, just assume 0.
-                inp = Console.ReadLine();
-                inptest = int.TryParse(inp, out int bck);
+                string? inp = Console.ReadLine();
+                bool inptest = int.TryParse(inp, out int bck);
                 if (inp == null || !inptest || bck < 0 || bck > 1) bck = 0;
                 if (bck == 1 && !File.Exists(pth + ".backup"))
                 {
@@ -118,6 +134,11 @@ namespace DokaponKingdomRandomizer
             // Initialize a bunch of settings variables
 
             // Equipment
+            bool shuffleEquip = false;
+            bool shuffleMagic = false;
+            bool shuffleItems = false;
+            bool shuffleConsumables = false;
+            bool shuffleSpecial = false;
             bool randoEquip = false;
             bool randoEquipSerious = false;
             float randoEquipMultiplier = 1.0f;
@@ -165,13 +186,70 @@ namespace DokaponKingdomRandomizer
             bool randoOutputLog = false;
             int randoSeed = 0;
 
-            // Equipment Randomizer Toggle
+            // Equipment Shuffle Toggle
             Console.WriteLine("""
-                
-                Allow Randomized Equipment? [true or false]> 
+
+                Shuffle which Weapons, Shields, and Accessories sit in which slot? Names and abilities move, stats and prices stay put. [true or false]>
                 """);
             string? inp = Console.ReadLine();
-            bool inptest = bool.TryParse(inp, out bool eqr);
+            bool inptest = bool.TryParse(inp, out bool eqf);
+            if (inp == null || !inptest) eqf = false;
+            shuffleEquip = eqf;
+
+            // Magic Shuffle Toggle
+            Console.WriteLine("""
+                
+                Shuffle which Offensive, Defensive, and Field Magic sit in which slot? Names and effects move, potency and prices stay put. [true or false]> 
+                """);
+            inp = Console.ReadLine();
+            inptest = bool.TryParse(inp, out bool mgf);
+            if (inp == null || !inptest) mgf = false;
+            shuffleMagic = mgf;
+
+            // Item Shuffle Toggle
+            Console.WriteLine("""
+                
+                Shuffle which Consumables and Gifts sit in which slot? Names and types move, prices and values stay put. [true or false]> 
+                """);
+            inp = Console.ReadLine();
+            inptest = bool.TryParse(inp, out bool itf);
+            if (inp == null || !inptest) itf = false;
+            shuffleItems = itf;
+
+            // Consumable Shuffle Toggle
+            if (itf)
+            {
+                Console.WriteLine("""
+                
+                EXPERIMENTAL: Also shuffle Consumables? The game may pick their effects by ID, so a "6 Crystal" could end up named something else but still move you 6 spaces. Gifts are always shuffled. [true or false]> 
+                """);
+                inp = Console.ReadLine();
+                inptest = bool.TryParse(inp, out bool itc);
+                if (inp == null || !inptest) itc = false;
+                shuffleConsumables = itc;
+            }
+
+            // Check for Shuffle stuff before continuing
+            if (eqf || mgf || itf)
+            {
+                // Should story/unbuyable items be mixed in with everything else?
+                Console.WriteLine("""
+                
+                Include story and unbuyable items (base price of 2 or less) in the shuffles? If false, they stay in their own slots. [true or false]> 
+                """);
+                inp = Console.ReadLine();
+                inptest = bool.TryParse(inp, out bool ssp);
+                if (inp == null || !inptest) ssp = false;
+                shuffleSpecial = ssp;
+            }
+
+            // Equipment Randomizer Toggle
+            Console.WriteLine("""
+
+                Allow Randomized Equipment? [true or false]>
+                """);
+            inp = Console.ReadLine();
+            inptest = bool.TryParse(inp, out bool eqr);
             if (inp == null || !inptest) eqr = false;
             randoEquip = eqr;
 
@@ -535,8 +613,7 @@ namespace DokaponKingdomRandomizer
             if (inp == null || !inptest) ot6 = false;
             randoExploits = ot6;
 
-            // Allow Prank Names Toggle (PC Only)
-            if(version == 1)
+            // Allow Prank Names Toggle
             {
                 Console.WriteLine("""
                 
@@ -577,6 +654,11 @@ namespace DokaponKingdomRandomizer
                 outputLog.WriteLine(" DOKAPON KINGDOM RANDOMIZER");
                 outputLog.WriteLine(" Seed: " + randoSeed);
                 outputLog.WriteLine("#########################################");
+                outputLog.WriteLine(" Shuffled Equipment: " + shuffleEquip);
+                outputLog.WriteLine(" Shuffled Magic: " + shuffleMagic);
+                outputLog.WriteLine(" Shuffled Items: " + shuffleItems);
+                outputLog.WriteLine(" Shuffled Consumables: " + shuffleConsumables);
+                outputLog.WriteLine(" Shuffles Include Story Items: " + shuffleSpecial);
                 outputLog.WriteLine(" Randomized Equipment: " + randoEquip);
                 outputLog.WriteLine(" Randomized Magic: " + randoMagic);
                 outputLog.WriteLine(" Randomized Items: " + randoItems);
@@ -649,8 +731,11 @@ namespace DokaponKingdomRandomizer
             Console.WriteLine("Done.");
 
             // Actual Randomizer Functions
+            fileData = shuffleItems ? ShuffleItems(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial, shuffleConsumables }) : fileData;
             fileData = randoItems ? RandomizeItems(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoExploits, randoOutputLog }) : fileData;
+            fileData = shuffleEquip ? ShuffleEquip(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial }) : fileData;
             fileData = randoEquip ? RandomizeEquip(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoEquipSerious, randoEquipMultiplier, randoEquipVarianceWeapons, randoEquipVarianceShields, randoEquipVarianceAccessories, randoOutputLog }) : fileData;
+            fileData = shuffleMagic ? ShuffleMagic(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial }) : fileData;
             fileData = randoMagic ? RandomizeMagic(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoMagicSerious, randoMagicMultiplier, randoMagicVarianceOffense, randoMagicVarianceDefense, randoMagicVarianceField, randoOutputLog }) : fileData;
             fileData = randoClass ? RandomizeClasses(version, filePath, fileData, settings: new List<object>() { randoSeed, randoClassSerious, randoClassMultiplier, randoClassVarianceBase, randoClassVarianceLevelUp, randoClassVarianceSalary, randoClassVarianceCapacity, randoOutputLog }) : fileData;
             fileData = randoMonster ? RandomizeMonsters(version, filePath, fileData, settings: new List<object>() { randoSeed, randoMonsterSerious, randoMonsterMultiplier, randoMonsterVarianceBase, randoOutputLog }) : fileData;
@@ -738,10 +823,6 @@ namespace DokaponKingdomRandomizer
         // Prank Names Randomizer function
         public static byte[] RandomizePrankNames(int version, string filePath, byte[] fileData, List<object> settings)
         {
-            // If the version value doesn't correlate to the PC version, return.
-            if (version != 1)
-            { return fileData; }
-
             // If you don't supply the right settings, just fallback to original data.
             if (settings.Count() != 2)
             {
@@ -1351,10 +1432,6 @@ namespace DokaponKingdomRandomizer
             }
 
             Console.WriteLine("Randomizing Equipment...");
-            // I'm not going to explain the Regex here, it's complicated.
-            Regex rgx_weapons = new("(?s)(\\x58\\x00\\x00\\x00)([\\s\\S])([\\s\\S])([\\s\\S]{2})([0-9A-Za-z\\+\\'\\x20\\-]+)(\\x00\\x00?\\x00?\\x00?)([\\s\\S]{4})([\\s\\S]{4})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})");
-            Regex rgx_shields = new("(?s)(\\^[\\x00\\s]{3})([\\x01-\\x28])([\\s\\S])([\\s\\S]{2})((Demon Shield)[\\x00\\s\\S]{6,10}|([0-9A-Za-z\\+\\'\\-]+( Guard| Shield)?)([\\x00\\s]{8}|[\\x00\\s]{7}|[\\x00\\s]{6}|[\\x00\\s]{3}[\\x01-\\xff][\\x00\\s]{2}|[\\x00\\s]{1,3}[\\x01-\\xff]{2}[\\x00\\s]{2}|[\\x00\\s][\\x01-\\xff]{2}[\\x00\\s]{2}|[\\x00\\s]{0,3}[\\S\\x01-\\xFF]{0,3}?[\\x00\\s]{0,3}))([\\x00\\s\\S]{3}[\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S][\\s\\x00\\x01\\xff\\xfe])([\\x00\\s\\S]{2})");
-            Regex rgx_accessories = new("(?s)(\\x64\\x00\\x00\\x00)([\\s\\S])([\\s\\S])([\\s\\S]{2})([0-9A-Za-z\\+\\'\\x20\\-]+)(\\x00{0,4}(\\x64\\x00|[\\s\\S]{2})[\\x00\\s\\S]{0,2})([\\s\\S]{4})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{2})([\\s\\S]{4})");
 
             Random RNG = new((int)settings[0]);
 
@@ -1693,6 +1770,187 @@ namespace DokaponKingdomRandomizer
             return fileData;
         }
 
+        // Shuffle Framework
+        // Instead of rolling new numbers, deal the game's own data out to different slots.
+        // A slot keeps its ID, price, and stats, so every part of the game keeps the power curve it was balanced around.
+        // The identity (name, type, special ability data) is what moves between slots.
+
+        // Items at or below this base price are story/unbuyable items (2 is also the lowest price the game uses)
+        private const int StoryItemMaxPrice = 2;
+
+        // Describes a table of records for the shuffler. Every record is laid out as:
+        //   [marker 4][ID 1] [3 prefix bytes] [name, null-terminated and padded to 4] [tail]
+        // PrefixMask and TailMask say what happens to each byte of those parts: 'S' stays with the slot, 'I' moves with the identity.
+        // The name always moves. PriceOffset is where the 4 byte price sits in the tail (-1 if there isn't one).
+        private record ShuffleTable(string Label, int Start, int Marker, int FirstId, string PrefixMask, string TailMask, int PriceOffset);
+
+        // One record of a table, cut into the pieces the shuffler moves around.
+        private record TableRecord(string Name, byte[] Head, byte[] Prefix, byte[] NameField, byte[] Tail);
+
+        // Read a table into records.
+        // Returns null if the layout isn't what's expected, so the caller can leave the file alone.
+        private static List<TableRecord>? ReadTable(byte[] fileData, ShuffleTable table, out int tableStart, out int tableEnd)
+        {
+            tableStart = tableEnd = -1;
+
+            // The Loc* offsets are where the older Randomize* regexes start, which is up to ~0x48 bytes after the table's first record
+            // (and the gift table's is ~0x80 before it), so look on both sides
+            int o = -1;
+            for (int s = Math.Max(0, table.Start - 0x100); s < table.Start + 0x100 && s + 8 <= fileData.Length; s++)
+            {
+                if (BitConverter.ToInt32(fileData, s) == table.Marker && fileData[s + 4] == table.FirstId) { o = s; break; }
+            }
+            if (o < 0) { return null; }
+            tableStart = o;
+
+            // Records keep going for as long as the marker is there and the IDs count up
+            List<TableRecord> records = new();
+            while (o + 8 <= fileData.Length && BitConverter.ToInt32(fileData, o) == table.Marker && fileData[o + 4] == table.FirstId + records.Count)
+            {
+                // The name runs to its null terminator, then pads out to a multiple of 4 bytes from the start of the record
+                int p = o + 8;
+                while (p < fileData.Length && fileData[p] != 0) { p++; }
+                if (p >= fileData.Length) { return null; }
+                string name = System.Text.Encoding.UTF8.GetString(fileData, o + 8, p - (o + 8));
+                p++;
+                while ((p - o) % 4 != 0) { p++; }
+
+                int end = p + table.TailMask.Length;
+                if (end > fileData.Length) { return null; }
+
+                records.Add(new TableRecord(name, fileData[o..(o + 5)], fileData[(o + 5)..(o + 8)], fileData[(o + 8)..p], fileData[p..end]));
+                o = end;
+            }
+
+            tableEnd = o;
+            return records.Count > 0 ? records : null;
+        }
+
+        // Shuffle every table in a list. Each table is its own pool.
+        // settings: seed, detailed output log, and whether story/unbuyable items get mixed in too.
+        private static byte[] ShuffleTables(string title, ShuffleTable[] tables, int salt, string filePath, byte[] fileData, List<object> settings)
+        {
+            // If you don't supply the right settings, just fallback to original data.
+            if (settings.Count() != 3)
+            {
+                Console.WriteLine("Error: Shuffle" + title + "() -> settings doesn't have 3 values.");
+                return fileData;
+            }
+
+            Console.WriteLine("Shuffling " + title + "...");
+
+            Random RNG = new((int)settings[0] + salt);
+
+            foreach (ShuffleTable table in tables)
+            {
+                List<TableRecord>? records = ReadTable(fileData, table, out int tableStart, out int tableEnd);
+                if (records == null)
+                {
+                    Console.WriteLine("Couldn't recognize the " + table.Label.ToLower() + " table layout, skipping it.");
+                    continue;
+                }
+
+                // Story and unbuyable items have a base price of 2 or less. Unless asked to mix them in, they sit this shuffle out.
+                List<int> pool = Enumerable.Range(0, records.Count).Where(i => (bool)settings[2] || table.PriceOffset < 0 || BitConverter.ToInt32(records[i].Tail, table.PriceOffset) > StoryItemMaxPrice).ToList();
+
+                // Fisher-Yates over the pool: slot pool[i] receives the identity that started on slot order[pool[i]]
+                int[] order = Enumerable.Range(0, records.Count).ToArray();
+                for (int i = pool.Count - 1; i > 0; i--)
+                {
+                    int j = RNG.Next(i + 1);
+                    (order[pool[i]], order[pool[j]]) = (order[pool[j]], order[pool[i]]);
+                }
+
+                // Rebuild the table: each slot keeps its own 'S' bytes and takes the 'I' bytes and name from another slot
+                List<byte> rebuilt = new();
+                for (int i = 0; i < records.Count; i++)
+                {
+                    TableRecord slot = records[i];
+                    TableRecord donor = records[order[i]];
+                    rebuilt.AddRange(slot.Head);
+                    for (int k = 0; k < slot.Prefix.Length; k++) { rebuilt.Add(table.PrefixMask[k] == 'I' ? donor.Prefix[k] : slot.Prefix[k]); }
+                    rebuilt.AddRange(donor.NameField);
+                    for (int k = 0; k < slot.Tail.Length; k++) { rebuilt.Add(table.TailMask[k] == 'I' ? donor.Tail[k] : slot.Tail[k]); }
+                }
+
+                // Names are different lengths, but they pad to 4 bytes, so a shuffle can't change the table size. Make sure before writing.
+                if (rebuilt.Count != tableEnd - tableStart)
+                {
+                    Console.WriteLine("The shuffled " + table.Label.ToLower() + " table changed size, skipping it.");
+                    continue;
+                }
+                rebuilt.CopyTo(fileData, tableStart);
+
+                // Write to output log, if it exists
+                if ((bool)settings[1])
+                {
+                    using (StreamWriter outputLog = File.AppendText(filePath + "_" + (int)settings[0] + ".txt"))
+                    {
+                        outputLog.WriteLine("\n\n == " + table.Label + " SHUFFLE (slot: original -> now) == ");
+                        for (int i = 0; i < records.Count; i++)
+                        {
+                            string price = table.PriceOffset >= 0 ? " (" + BitConverter.ToInt32(records[i].Tail, table.PriceOffset) + "G)" : "";
+                            outputLog.WriteLine("ID #" + (table.FirstId + i) + price + ": " + records[i].Name + " -> " + records[order[i]].Name);
+                        }
+                        outputLog.Close();
+                    }
+                }
+            }
+
+            Console.WriteLine("Done.");
+
+            return fileData;
+        }
+
+        // Equipment Shuffler function
+        // Weapons, Shields, and Accessories each keep their own pool.
+        // Moves: type, name, ability data. Stays: price, stats, sort order.
+        public static byte[] ShuffleEquip(int version, string filePath, byte[] fileData, List<object> settings)
+        {
+            ShuffleTable[] tables = new ShuffleTable[]
+            {
+                new("WEAPON", LocStatsWeapons[version], 0x58, 1, "SII", "IIII" + new string('S', 16), 4),
+                new("SHIELD", LocStatsShields[version], 0x5E, 1, "SII", "IIII" + new string('S', 16), 4),
+                new("ACCESSORY", LocStatsAccessories[version], 0x64, 1, "SII", "IIII" + new string('S', 16) + "IIII", 4)
+            };
+            return ShuffleTables("Equipment", tables, 0, filePath, fileData, settings);
+        }
+
+        // Magic Shuffler function
+        // Offensive, Defensive, and Field Magic each keep their own pool.
+        // Moves: type, name, element/category, animation and effect data. Stays: price, potency, cost.
+        public static byte[] ShuffleMagic(int version, string filePath, byte[] fileData, List<object> settings)
+        {
+            // Tail: price 4, potency 2, category 1, cost 1, animation and effect data 4
+            const string magicTail = "SSSSSSISIIII";
+            ShuffleTable[] tables = new ShuffleTable[]
+            {
+                new("OFFENSE MAGIC", LocStatsMagicOffense[version], 0x70, 1, "SII", magicTail, 0),
+                new("DEFENSE MAGIC", LocStatsMagicDefense[version], 0x72, 1, "SII", magicTail, 0),
+                new("FIELD MAGIC", LocStatsMagicField[version], 0x74, 1, "SII", magicTail, 0)
+            };
+            return ShuffleTables("Magic", tables, 1, filePath, fileData, settings);
+        }
+
+        // Item Shuffler function
+        // Gifts always shuffle, and only move names: their price, value to the King, and sort data all stay with the slot.
+        // Consumables are opt-in (settings[3]). They move category, type, and name, and keep price and the two shop values after it.
+        // Some Consumables are identical apart from their names (the numbered Crystals), so the game may pick their effect by ID.
+        // If it does, shuffling them only renames them.
+        public static byte[] ShuffleItems(int version, string filePath, byte[] fileData, List<object> settings)
+        {
+            // If you don't supply the right settings, just fallback to original data.
+            if (settings.Count() != 4)
+            {
+                Console.WriteLine("Error: ShuffleItems() -> settings doesn't have 4 values.");
+                return fileData;
+            }
+
+            List<ShuffleTable> tables = new();
+            if ((bool)settings[3]) { tables.Add(new("CONSUMABLE", LocStatsConsumables[version], 0x69, 1, "IIS", new string('S', 8), 0)); }
+            tables.Add(new("GIFT", LocStatsGifts[version], 0x6C, 78, "SSS", new string('S', 12), 0));
+            return ShuffleTables("Items", tables.ToArray(), 2, filePath, fileData, settings.GetRange(0, 3));
+        }
         // Magic Randomizer function
         public static byte[] RandomizeMagic(int version, string filePath, byte[] fileData, List<object> settings)
         {

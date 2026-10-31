@@ -1,0 +1,25 @@
+# Build output
+bin/
+obj/
+.vs/
+*.user
+
+# Game files and anything made from them (copyrighted, and large): never commit these
+ActualGame/
+assets/
+rollbacked/
+TestMod/
+*.DAT
+*.DAT.backup
+*.cpk
+*.texpack
+*.hex
+DkkStm*.exe
+BoardDump.txt
+tools/boardview/example_continent_overlay.png
+
+# Third-party tools
+YACpkTool_v1.1/
+
+# Python
+__pycache__/

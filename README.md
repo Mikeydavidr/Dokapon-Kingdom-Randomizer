@@ -31,6 +31,25 @@ Depending on which version you have, there's different steps to take. You'll wan
 - Making a Backup (Boolean):
 	This allows you to save a backup of your extracted file whereever it's located before writing to it.
 
+- Shuffling Equipment (Boolean):
+	Instead of rolling new numbers, this swaps which item sits in which slot, within each pool (Weapons with Weapons, Shields with Shields, Accessories with Accessories). Every slot keeps its ID, Price, and Stats, so the power curve of the game is unchanged, but the item's identity (name, type, and ability data) moves. The Knife's tutorial slot might hand you a Kitten Mitten with the Knife's Stats and Price.
+	Can be combined with Randomizing Equipment, in which case the shuffle happens first.
+
+- Shuffling Magic (Boolean):
+	The same idea for Offensive, Defensive, and Field Magic, each in their own pool. Every slot keeps its ID, Price, Potency, and Cost, but the spell's identity (name, type, element, and animation/effect data) moves. A first-tier slot might hand you Teleport at Scorch's price and potency.
+	Can be combined with Randomizing Magic, in which case the shuffle happens first.
+
+- Shuffling Items (Boolean):
+	Shuffles the names of Gifts for the King between Gift slots. Everything else about a Gift (Price, value to the King, sort data) stays with the slot.
+	Can be combined with Randomizing Consumables/Prices, in which case the shuffle happens first.
+	- Also Shuffle Consumables (Boolean, EXPERIMENTAL):
+		Also shuffles Consumables between Consumable slots. Price and shop values stay with the slot, while name, category, and type move. Off by default, because the game may decide what a Consumable does by its ID rather than by its data. The numbered Crystals are identical apart from their names, so a "6 Crystal" could end up named something else and still move you 6 spaces. Test this in-game before trusting it.
+
+- Include Story and Unbuyable Items (Boolean, only asked if you shuffle something):
+	Items with a base price of 2 or less (things like the Draco Blade, Demon Shield, and quest items) are normally left in their own slots. Turn this on to mix them in with everything else.
+
+NOTE: Item descriptions and any effects the game hard-codes by item ID can't be moved by the shuffle options.
+
 - Randomizing Equipment (Boolean):
 	This allows you to randomize the statistics of Weapons, Shields, and Accessories.
 	If enabled, you get the following options:
