@@ -12,11 +12,11 @@ import random
 import struct
 from dataclasses import dataclass, field
 
-from .exe import BASE, Exe, HexMod, foff, rva_to_va
+from .effects_common import ALWAYS, TierSettings, assign, chance_for, follow_base
+from .exe import Exe, HexMod, foff, rva_to_va
 from .gamefile import GameFile
 from .tables import TableSpec, read_table, write_table
 
-ALWAYS = 101      # chance byte value that always procs
 NO_EFFECT = 0
 
 
@@ -57,14 +57,8 @@ ID_SITE_B, ID_OLD_B = 0x140175405, bytes.fromhex("80 B8 48 01 00 00 27")     # c
 ID_SITE_C, ID_OLD_C = 0x1401717D6, bytes.fromhex("44 0F B6 88 48 01 00 00")  # movzx r9d, byte [rax + 0x148]
 
 
-@dataclass
-class ShieldEffectSettings:
-    mode: str = "unchanged"                 # "unchanged", "shuffle" (same effects, other shields), "random" (each shield rolls)
-    pinned: frozenset[int] = frozenset()    # shield ids that keep their own effect whatever the mode
-    effect_weights: dict[int, float] = field(default_factory=dict)   # random mode: weight per effect id (default 1 each)
-    effect_rate: float | None = None        # random mode: chance a shield gets any effect (default: the original share, 9 of 40)
-    always_proc: bool = False               # "effectful": every effect with a roll procs every time
-    effect_odds: dict[int, int] = field(default_factory=dict)        # percent per effect id; beats the default, loses to always_proc
+class ShieldEffectSettings(TierSettings):
+    """mode, pinned, effect_weights, effect_rate, always_proc and effect_odds: see effects_common.TierSettings (ids are shield ids)."""
 
 
 @dataclass
@@ -81,40 +75,15 @@ def vanilla_assignment() -> dict[int, int]:
     return {sid: (sid if sid in EFFECTS else NO_EFFECT) for sid in range(1, SHIELD_COUNT + 1)}
 
 
-def assign_effects(settings: ShieldEffectSettings, rng: random.Random) -> dict[int, int]:
-    result = vanilla_assignment()
-    free = [sid for sid in range(1, SHIELD_COUNT + 1) if sid not in settings.pinned]
-    if settings.mode == "unchanged":
-        return result
-    if settings.mode == "shuffle":
-        effects = [result[sid] for sid in free if result[sid] != NO_EFFECT]   # as many copies as the game had
-        homes = rng.sample(free, len(effects))
-        for sid in free:
-            result[sid] = NO_EFFECT
-        for sid, eff in zip(homes, effects):
-            result[sid] = eff
-    elif settings.mode == "random":
-        ids = list(EFFECTS)
-        weights = [max(0.0, settings.effect_weights.get(e, 1.0)) for e in ids]
-        rate = settings.effect_rate if settings.effect_rate is not None else len(EFFECTS) / SHIELD_COUNT
-        for sid in free:
-            result[sid] = rng.choices(ids, weights)[0] if rng.random() < rate and sum(weights) > 0 else NO_EFFECT
-    else:
-        raise ValueError(f"unknown shield effect mode {settings.mode!r}")
-    return result
+def assign_effects(settings: ShieldEffectSettings, rng: random.Random, base: dict[int, int] | None = None) -> dict[int, int]:
+    """`base` is the unchanged tier (see effects_common.follow_base); without it every shield keeps its own effect."""
+    return assign(base or vanilla_assignment(), list(EFFECTS), settings, rng, NO_EFFECT)
 
 
-def odds_for(effect_id: int, settings: ShieldEffectSettings) -> int:
-    """The chance byte for an effect: 0 for none, ALWAYS for effects without a roll, else the setting."""
-    if effect_id == NO_EFFECT:
-        return 0
-    eff = EFFECTS[effect_id]
-    if eff.roll_va is None:
-        return ALWAYS
-    if settings.always_proc:
-        return ALWAYS
-    pct = settings.effect_odds.get(effect_id, eff.vanilla_odds)
-    return ALWAYS if pct >= 100 else max(0, pct)
+def odds_for(effect_id: int, settings: ShieldEffectSettings, rng: random.Random | None = None) -> int:
+    """The chance byte for an effect: 0 for none, ALWAYS for effects without a roll, else per the settings."""
+    eff = EFFECTS.get(effect_id)
+    return chance_for(effect_id, NO_EFFECT, eff.vanilla_odds if eff else 0, bool(eff and eff.roll_va), settings, rng)
 
 
 # -- the exe patch -----------------------------------------------------------------------------------------------------
@@ -252,12 +221,16 @@ def write_descriptions(game: GameFile, slots: list[tuple[int, int]], assignment:
 
 # -- everything together -----------------------------------------------------------------------------------------------
 
-def apply_shield_effects(game: GameFile, exe: Exe, mod: HexMod, settings: ShieldEffectSettings, seed: int) -> ShieldEffectResult:
+def apply_shield_effects(game: GameFile, exe: Exe, mod: HexMod, settings: ShieldEffectSettings, seed: int,
+                         original_names: list[str] | None = None) -> ShieldEffectResult:
     """Decide who gets what, patch the data file (chances, descriptions) and add the exe patch to `mod`."""
     rng = random.Random(seed + 0x5B1E)
-    assignment = assign_effects(settings, rng)
-    odds = {sid: odds_for(eff, settings) for sid, eff in assignment.items()}
-    vanilla = vanilla_assignment()
+    # the unchanged tier: if the equipment shuffler moved shields between slots, each effect follows its shield by name
+    names_now = [r.name for r in read_table(game.data, shield_spec(game)).records]
+    base = follow_base(vanilla_assignment(), names_now, original_names, NO_EFFECT)
+    assignment = assign_effects(settings, rng, base)
+    odds = {sid: odds_for(eff, settings, rng) for sid, eff in assignment.items()}
+    vanilla = vanilla_assignment()   # what the unpatched game does (and what the descriptions say); `base` can differ after a shuffle
     vanilla_odds = {sid: odds_for(eff, ShieldEffectSettings()) for sid, eff in vanilla.items()}
     result = ShieldEffectResult(assignment, odds)
     if assignment == vanilla and odds == vanilla_odds:

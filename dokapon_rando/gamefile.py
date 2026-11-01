@@ -18,11 +18,12 @@ class Build:
     weapons: int
     shields: int
     accessories: int
+    magic_offense: int
 
 
 BUILDS = (
-    Build(0, 725136, "before the October 2025 update", 0x83CC, 0xAB48, 0xBDAC),
-    Build(1, 725600, "current (October 2025 update)", 0x83F0, 0xAB7C, 0xBDE4),
+    Build(0, 725136, "before the October 2025 update", 0x83CC, 0xAB48, 0xBDAC, 0x14C4C),
+    Build(1, 725600, "current (October 2025 update)", 0x83F0, 0xAB7C, 0xBDE4, 0x14C94),
 )
 
 
