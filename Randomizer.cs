@@ -52,6 +52,21 @@ namespace DokaponKingdomRandomizer
         // The proc chance each case's code used, in percent: a roll of 0-100 procs when it's below the chance. Case 11 never rolls.
         private static readonly byte[] EffectChance = { 12, 12, 12, 12, 12, 12, 12, 25, 12, 8, 12, 100, 12, 12, 12, 25, 12, 12, 12, 25, 25, 50 };
         private const byte EffectNone = 22;
+        // Shop text for each effect, in the same order: a full line for the bigger descriptions, a short one for the small ones.
+        // "Defender" is the one being attacked, "attacker" the wielder.
+        private static readonly string[] EffectText = {
+            "Put defender to sleep", "Curse defender", "Light damage to defender", "Poison defender", "Reduce defender's attack",
+            "Fire damage to defender", "Seal one defender battle command", "Light damage to defender", "Wind damage to defender", "Instantly kill defender",
+            "Reduce all defender's stats", "Drain 2x attacker's level", "Raise all attacker's stats 25%", "Blind defender", "Reduce defender's speed",
+            "Lightning damage to defender", "Light damage to defender", "Destroy defender's battle magic", "Fire damage to defender", "Drain 1/10 attacker's HP",
+            "Wind damage to defender", "Fire damage to defender" };
+        // The offensive spell (position in the offensive magic table) that an effect casts on the defender, or -1 if it isn't a spell.
+        // Read from the exe: the effect code points at the spell array in memory, whose records are 0x138 apart from base + 0x4F020.
+        private static readonly int[] EffectSpell = { -1, -1, 4, -1, -1, 1, -1, 4, 11, -1, -1, -1, -1, -1, -1, 4, 14, -1, 2, -1, 11, 2 };
+        private static readonly string[] EffectShortText = {
+            "Sleep", "Curse", "Light damage", "Poison", "Attack down", "Fire damage", "Seal command", "Light damage", "Wind damage", "Instant kill",
+            "All stats down", "Drain 2x level", "Own stats +25%", "Blind", "Speed down", "Lightning", "Light damage", "Destroy magic", "Fire damage", "Drain 1/10 HP",
+            "Wind damage", "Fire damage" };
         // File offsets of each case's first roll ("sub ecx, eax; cmp cx, imm8"), -1 if it has none
         private static readonly int[] EffectRollSites = { 0x1782D8, 0x17833D, 0x17867B, 0x1783A2, 0x178616, 0x1789B7, 0x1784D1, 0x1787B5, 0x178BC2, 0x178279, 0x1785B1, -1, 0x1781F0, 0x178407, 0x17854C, 0x1788B6, 0x178CC3, 0x17846C, 0x178AB8, 0x178159, 0x178DC4, 0x178EC5 };
         // Where the patch puts things: the .text section's VirtualSize field, the new table and the roll helper (file offsets and RVAs)
@@ -793,9 +808,9 @@ namespace DokaponKingdomRandomizer
             fileData = randoItems ? RandomizeItems(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoExploits, randoOutputLog }) : fileData;
             fileData = shuffleEquip ? ShuffleEquip(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial }) : fileData;
             fileData = randoEquip ? RandomizeEquip(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoEquipSerious, randoEquipMultiplier, randoEquipVarianceWeapons, randoEquipVarianceShields, randoEquipVarianceAccessories, randoOutputLog }) : fileData;
-            fileData = randoEffects > 0 ? RandomizeWeaponEffects(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, randoEffects, randoEffectsChance, weaponNames }) : fileData;
             fileData = shuffleMagic ? ShuffleMagic(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, shuffleSpecial }) : fileData;
             fileData = randoMagic ? RandomizeMagic(version, filePath, fileData, settings: new List<object>() { randoSeed, randoPrices, randoPricesSerious, randoPricesVariance, randoPricesMinimum, randoMagicSerious, randoMagicMultiplier, randoMagicVarianceOffense, randoMagicVarianceDefense, randoMagicVarianceField, randoOutputLog }) : fileData;
+            fileData = randoEffects > 0 ? RandomizeWeaponEffects(version, filePath, fileData, settings: new List<object>() { randoSeed, randoOutputLog, randoEffects, randoEffectsChance, weaponNames }) : fileData;
             fileData = randoClass ? RandomizeClasses(version, filePath, fileData, settings: new List<object>() { randoSeed, randoClassSerious, randoClassMultiplier, randoClassVarianceBase, randoClassVarianceLevelUp, randoClassVarianceSalary, randoClassVarianceCapacity, randoOutputLog }) : fileData;
             fileData = randoMonster ? RandomizeMonsters(version, filePath, fileData, settings: new List<object>() { randoSeed, randoMonsterSerious, randoMonsterMultiplier, randoMonsterVarianceBase, randoOutputLog }) : fileData;
             fileData = randoShops ? RandomizeShops(version, filePath, fileData, settings: new List<object>() { randoSeed, randoExploits, randoOutputLog }) : fileData;
@@ -2052,10 +2067,15 @@ namespace DokaponKingdomRandomizer
                 o += r.Head.Length + r.Prefix.Length + r.NameField.Length + r.Tail.Length;
             }
 
+            // The shop descriptions say what the effect is and how often it happens, written into each description's own space
+            // Spell effects name the spell, which can have moved with the magic shuffle (the effects run after the magic functions)
+            List<string> spellNames = ReadTable(fileData, new("OFFENSE MAGIC", LocStatsMagicOffense[version], 0x70, 1, "SII", "SSSSSSISIIII", 0), out _, out _)?.Select(r => r.Name).ToList() ?? new();
+            int described = WriteEffectDescriptions(fileData, effects, chances, original, spellNames);
+            Console.WriteLine(described < 0 ? "Couldn't find the weapon descriptions, they still describe each weapon's original effect." : "Rewrote " + described + " weapon descriptions.");
+
             string hexPath = WriteEffectsHex(filePath, effects);
             Console.WriteLine("Wrote the exe patch to " + hexPath + ".");
             Console.WriteLine("Install it from your mod's Hex folder with ConnectModInstaller. It only fits the current Steam build of the game.");
-            Console.WriteLine("Shop descriptions still describe each weapon's original effect.");
 
             // Write to output log, if it exists
             if ((bool)settings[1])
@@ -2076,6 +2096,65 @@ namespace DokaponKingdomRandomizer
             Console.WriteLine("Done.");
 
             return fileData;
+        }
+
+        // The 67 weapon descriptions are null-terminated strings in ID order, each padded to a multiple of 4 bytes. A line break is a literal "\n".
+        // Rewrites the description of every weapon whose effect isn't its own anymore, inside the space it already has.
+        // Returns how many were rewritten, or -1 if the descriptions weren't where expected.
+        private static int WriteEffectDescriptions(byte[] fileData, byte[] effects, byte[] chances, byte[] original, List<string> spellNames)
+        {
+            byte[] first = System.Text.Encoding.ASCII.GetBytes("A regular ol' knife.");
+            int start = -1;
+            for (int i = 0; i + first.Length < fileData.Length && start < 0; i++)
+            {
+                if (fileData.AsSpan(i, first.Length).SequenceEqual(first)) { start = i; }
+            }
+            if (start < 0) { return -1; }
+
+            List<(int Pos, int Size)> slots = new();
+            int pos = start;
+            for (int i = 0; i < 67; i++)
+            {
+                int end = Array.IndexOf(fileData, (byte)0, pos);
+                if (end < 0) { return -1; }
+                int next = end;
+                while (fileData[next] == 0) { next++; }
+                slots.Add((pos, next - pos));
+                pos = next;
+            }
+            // Punisher is the last one
+            if (!System.Text.Encoding.ASCII.GetString(fileData, slots[66].Pos, 20).StartsWith("A sword found hidden")) { return -1; }
+
+            int count = 0;
+            for (int i = 0; i < 67; i++)
+            {
+                if (effects[i] == original[i]) { continue; }
+
+                string text;
+                if (effects[i] == EffectNone)
+                {
+                    text = "No special effect.";
+                }
+                else
+                {
+                    bool rolls = EffectRollSites[effects[i]] >= 0;
+                    int spell = EffectSpell[effects[i]];
+                    bool casts = spell >= 0 && spell < spellNames.Count;
+                    string line = casts ? "Cast " + spellNames[spell] : EffectText[effects[i]];
+                    text = line + "\\n" + (rolls ? chances[i] + "% chance" : "Always on");
+                    // Short form for the small descriptions
+                    if (text.Length >= slots[i].Size) { text = (casts ? line : EffectShortText[effects[i]]) + (rolls ? " " + chances[i] + "%" : ""); }
+                }
+                if (text.Length >= slots[i].Size) { continue; }
+
+                // The game walks the strings one after another, so a longer run of zeros would read as blank descriptions and push
+                // every later one down. Fill the rest of the space with spaces and leave a single terminator.
+                byte[] bytes = System.Text.Encoding.ASCII.GetBytes(text.PadRight(slots[i].Size - 1));
+                Array.Clear(fileData, slots[i].Pos, slots[i].Size);
+                bytes.CopyTo(fileData, slots[i].Pos);
+                count++;
+            }
+            return count;
         }
 
         // Write the exe patch as a ConnectModInstaller hex mod: [8 byte file offset][8 byte length][bytes], both numbers big-endian.

@@ -6,19 +6,10 @@ Version 3.0
 
 ## HOW TO USE
 
-This randomizer will work with the Wii version of Dokapon Kindom and the PC (Steam) version of Dokapon Kingdom.
-Depending on which version you have, there's different steps to take. You'll want to have a zip archive extracter at the ready. I recommend 7zip.
+This randomizer works with the PC (Steam) version of Dokapon Kingdom Connect. The Wii version is no longer supported.
+You'll want to have a zip archive extracter at the ready. I recommend 7zip.
 
-### For the Wii version:
-1) Obtain a dumped Wii copy of Dokapon Kingdom. Preferably legally.
-2) Download the Wii/GC emulator, Dolphin. A quick google search should be able to find it.
-3) Extract all files from Dokapon Kingdom. Make sure the files are kept in their original filepaths.
-4) Copy "GAME.PAC" to where your copy of the Randomizer is located.
-5) Run the randomizer. When prompted, make a backup, just in case. Follow the remainder of the steps to fill out what options you want.
-6) Once you're done, place the altered "GAME.PAC" back where the original one was with the rest of your Dokapon Kingdom's extracted game files.
-7) Search your Dokapon Kingdom's extracted game files for "main.dol". Run that file in Dolphin instead of your dumped copy.
-
-### For the PC (Steam) version:
+### Steps:
 1) Obtain a copy of Dokapon Kingdom Connect from Steam. I'm unsure of other potential storefronts that may have it.
 2) Download "Connect Mod Installer" and "Yet Another CPK Tool". Both can be found on Github and through some potential google searching. Read their instructions to learn how they work.
 3) Drag and drop "Data_eng.cpk" onto "Yet Another CPK Tool" to extract its data.
@@ -26,6 +17,8 @@ Depending on which version you have, there's different steps to take. You'll wan
 5) Run the randomizer. When prompted, make a backup, just in case. Follow the remainder of the steps to fill out what options you want.
 6) Once you're done, move the altered "stageBase_EN.dat" into an "Assets" folder inside another folder with a name of your choice, then move that folder to inside of the "Connect Mod Installer" Mods folder.
 7) Run "Connect Mod Installer" and point it to your Dokapon Kingdom Connect executable.
+
+If you turned on Weapon Special Effects, the randomizer also writes a "Hex" folder (next to your "Assets" folder, inside the mod folder) containing "weapon_effects.hex". Keep it there: Connect Mod Installer applies it to the game executable. It only fits the current Steam build of the game.
 
 ## OPTIONS
 - Making a Backup (Boolean):
@@ -44,6 +37,13 @@ Depending on which version you have, there's different steps to take. You'll wan
 	Can be combined with Randomizing Consumables/Prices, in which case the shuffle happens first.
 	- Also Shuffle Consumables (Boolean, EXPERIMENTAL):
 		Also shuffles Consumables between Consumable slots. Price and shop values stay with the slot, while name, category, and type move. Off by default, because the game may decide what a Consumable does by its ID rather than by its data. The numbered Crystals are identical apart from their names, so a "6 Crystal" could end up named something else and still move you 6 spaces. Test this in-game before trusting it.
+
+- Weapon Special Effects (0 to 3, current Steam build only):
+	In the base game only 22 weapons have a special effect (Sleep Bow, Dream Rod, Soul Eater and so on), tied to the weapon's ID inside the executable. This option patches the executable (through the Hex file above) so any weapon can carry any of those effects, and so an effect's chance is read from the weapon's own record instead of being fixed in the code.
+	- 0: unchanged. 1: effects follow their weapon's name, which matters when Equipment is shuffled. 2: the existing effects are dealt out to different weapons. 3: every weapon gets a random effect.
+	- Randomize the effects' proc chances (Boolean): Each effect gets a chance of 5% to 50% (effects that are always on stay on). If false, each effect keeps its base game chance.
+	Weapon descriptions are rewritten to say what the weapon now does and its chance, for example "Cast Zapper" and "12% chance". Spell effects name the spell they cast, which follows Shuffling Magic. The other effects use generic text.
+	A weapon that ends up with its own base game effect keeps its original description.
 
 - Include Story and Unbuyable Items (Boolean, only asked if you shuffle something):
 	Items with a base price of 2 or less (things like the Draco Blade, Demon Shield, and quest items) are normally left in their own slots. Turn this on to mix them in with everything else.
