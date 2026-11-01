@@ -23,3 +23,8 @@ YACpkTool_v1.1/
 
 # Python
 __pycache__/
+
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
