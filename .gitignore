@@ -28,3 +28,6 @@ __pycache__/
 __pycache__/
 .pytest_cache/
 *.pyc
+
+# Per-run state of the live memory tools (addresses and bytes from the game process)
+tools/live/*_state.json
