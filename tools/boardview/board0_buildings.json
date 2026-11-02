@@ -260,24 +260,167 @@
     }
   },
   "not_matrix_placed": {
-    "_": "buildings that are not placed by a matrix of F00_M/F00_N, or that have not been identified yet",
-    "weapon stores": [
-      24,
-      105,
-      133,
-      202,
-      246,
-      304
-    ],
-    "castles": [
-      14,
-      123,
-      199,
-      260
-    ],
-    "magic store": [
-      2
-    ],
+    "_": "still to map: the buildings of the stores and castles above, and the stone-disc town buildings",
     "towns": "the stone-disc villages have not been looked at"
+  },
+  "shadows_only": {
+    "_": "Stores and castles whose building is not on an F00_M/F00_N matrix (so the building itself is not mapped yet), but whose shadow is located and verified by moving it in the running game. Centres are original positions.",
+    "2": {
+      "kind": "magic store",
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 221,
+          "centre": [
+            -584,
+            159
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "14": {
+      "kind": "castle",
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -503,
+            114
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "24": {
+      "kind": "weapon store",
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 214,
+          "centre": [
+            -398,
+            76
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "105": {
+      "kind": "weapon store",
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -33,
+            15
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "123": {
+      "kind": "castle",
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 12,
+          "centre": [
+            367,
+            244
+          ],
+          "vertices": 8
+        }
+      },
+      "verified": true,
+      "note": "mountains hide the shifted shadow on screen"
+    },
+    "133": {
+      "kind": "weapon store",
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            447,
+            147
+          ],
+          "vertices": 6
+        }
+      },
+      "verified": true
+    },
+    "199": {
+      "kind": "castle",
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            547,
+            -368
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "202": {
+      "kind": "weapon store",
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 17,
+          "centre": [
+            333,
+            -425
+          ],
+          "vertices": 6
+        }
+      },
+      "verified": true
+    },
+    "246": {
+      "kind": "weapon store",
+      "shadow": {
+        "matrix": [
+          "A",
+          191
+        ]
+      },
+      "verified": true
+    },
+    "260": {
+      "kind": "castle",
+      "shadow": {
+        "matrix": [
+          "A",
+          47
+        ]
+      },
+      "verified": true,
+      "note": "A 47 and A 60 are identical matrices and move together; the lift also moved a pair of palm trees that look like part of the shadow"
+    },
+    "304": {
+      "kind": "weapon store",
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 205,
+          "centre": [
+            -379,
+            -481
+          ],
+          "vertices": 7
+        }
+      },
+      "verified": true
+    }
   }
 }
