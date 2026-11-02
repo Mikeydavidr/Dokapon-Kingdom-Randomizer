@@ -260,7 +260,8 @@
     }
   },
   "not_matrix_placed": {
-    "_": "still to map: the buildings of the stores and castles above, and the stone-disc town buildings",
+    "_": "still to map",
+    "buildings": "castle 14, the bodies of the six weapon stores and their emblem transforms",
     "towns": "the stone-disc villages have not been looked at"
   },
   "shadows_only": {
@@ -421,6 +422,80 @@
         }
       },
       "verified": true
+    }
+  },
+  "baked_buildings": {
+    "_": "Buildings that are not placed by a matrix. They are clusters of welded vertices (vertices that share a position) in a batch mesh, in WORLD coordinates (raw = world), so a building is moved by adding the same offset to all of its vertices. Select them with: every welded cluster of the mesh whose centre is within `radius` of `centre`. Verified in the running game (lift by 60).",
+    "2": {
+      "kind": "magic store",
+      "file": "N",
+      "mesh": 59,
+      "centre": [
+        -580,
+        155
+      ],
+      "radius": 18,
+      "note": "radius 11 leaves the steps' neighbours; 18 also takes the purple mushrooms around it"
+    },
+    "123": {
+      "kind": "castle",
+      "file": "M",
+      "mesh": 5,
+      "centre": [
+        372,
+        240
+      ],
+      "radius": 25
+    },
+    "199": {
+      "kind": "castle",
+      "file": "M",
+      "mesh": 2,
+      "centre": [
+        547,
+        -372
+      ],
+      "radius": 25
+    },
+    "260": {
+      "kind": "castle",
+      "file": "M",
+      "mesh": 43,
+      "centre": [
+        -79,
+        -483
+      ],
+      "radius": 30,
+      "note": "the palm trees around it are matrices A47/A60, which are also its shadow"
+    }
+  },
+  "weapon_store_emblems": {
+    "_": "The golden sword-and-shield emblem above each weapon store: a 749-vertex piece with the same raw coordinates for every store (centre (-389, 61)); a per-store transform that is not in the matrix list places it. Found by lifting each piece by a different height. The store bodies (walls, door, steps) are separate pieces and not mapped yet.",
+    "133": {
+      "file": "M",
+      "mesh": 9
+    },
+    "202": {
+      "file": "M",
+      "mesh": 12
+    },
+    "105": {
+      "file": "M",
+      "mesh": 59
+    },
+    "246": {
+      "file": "N",
+      "mesh": 12
+    },
+    "304": {
+      "file": "N",
+      "mesh": 33,
+      "confidence": "medium"
+    },
+    "24": {
+      "file": "N",
+      "mesh": 34,
+      "confidence": "medium"
     }
   }
 }
