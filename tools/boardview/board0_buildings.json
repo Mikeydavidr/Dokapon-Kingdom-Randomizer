@@ -1,26 +1,283 @@
 {
   "_about": "Board 0 buildings that stand on a transform matrix, and the shadow that goes with each. Found with the hide/lift/move tests in tools/live and tools/testpatch. 'matrix' = [model file, index in its MTRX chunk]; a shadow is either a vertex cluster {file, mesh, centre [x, z], vertices} inside a shared batch mesh (move by shifting its vertices, the centre is the cluster's ORIGINAL position) or a matrix. verified = seen moving in the running game.",
   "buildings": {
-    "18":  {"kind": "item store",   "matrix": ["N", 46], "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [-409, 144],  "vertices": 4}},  "verified": true},
-    "59":  {"kind": "item store",   "matrix": ["N", 14], "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [-165, -130], "vertices": 4}},  "verified": true},
-    "69":  {"kind": "item store",   "matrix": ["N", 15], "shadow": {"matrix": ["A", 193]}, "verified": true, "note": "N 15 or N 27 is the building (both are near 69); A 133 and A 138 are mushrooms"},
-    "76":  {"kind": "castle",       "matrix": ["N", 1],  "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [-174, 177],  "vertices": 4}},  "verified": true},
-    "87":  {"kind": "magic store",  "matrix": ["M", 43], "shadow": null, "verified": false, "note": "no cluster near the building; A 56 is a guess"},
-    "122": {"kind": "item store",   "matrix": ["M", 20], "shadow": {"cluster": {"file": "A",     "mesh": 30, "centre": [292, 206],   "vertices": 8}},  "verified": false},
-    "152": {"kind": "magic store",  "matrix": ["M", 5],  "shadow": {"cluster": {"file": "A",     "mesh": 30, "centre": [317, -53],   "vertices": 4}},  "verified": true, "note": "the fan at (343, -102) in the same mesh is a tree shadow"},
-    "170": {"kind": "castle",       "matrix": ["M", 24], "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [123, 369],   "vertices": 4}},  "verified": true},
-    "218": {"kind": "item store",   "matrix": ["M", 2],  "shadow": {"cluster": {"file": "A",     "mesh": 18, "centre": [458, -565],  "vertices": 10}}, "verified": true, "note": "verified by collapsing the whole mesh piece"},
-    "237": {"kind": "item store",   "matrix": ["M", 45], "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [29, -300],   "vertices": 4}},  "verified": true},
-    "268": {"kind": "magic store",  "matrix": ["M", 44], "shadow": {"matrix": ["A", 57]}, "verified": false, "note": "A 57 removed the shadow in the hide test, not yet lifted on its own"},
-    "287": {"kind": "magic store",  "matrix": ["N", 32], "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [-397, -368], "vertices": 10}}, "verified": true},
-    "311": {"kind": "castle",       "matrix": ["N", 37], "shadow": {"cluster": {"file": "Anim1", "mesh": 13, "centre": [-411, -537], "vertices": 5}},  "verified": true},
-    "314": {"kind": "item store",   "matrix": ["N", 33], "shadow": {"cluster": {"file": "Anim2", "mesh": 6,  "centre": [-273, -533], "vertices": 4}},  "verified": true, "note": "tilted quad, 7.6 units of height; a flat-only search misses it"}
+    "18": {
+      "kind": "item store",
+      "matrix": [
+        "N",
+        46
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -409,
+            144
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "59": {
+      "kind": "item store",
+      "matrix": [
+        "N",
+        14
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -165,
+            -130
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "69": {
+      "kind": "item store",
+      "matrix": [
+        "N",
+        15
+      ],
+      "shadow": {
+        "matrix": [
+          "A",
+          193
+        ]
+      },
+      "verified": true,
+      "note": "N 15 or N 27 is the building (both are near 69); A 133 and A 138 are mushrooms"
+    },
+    "76": {
+      "kind": "castle",
+      "matrix": [
+        "N",
+        1
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -174,
+            177
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "87": {
+      "kind": "magic store",
+      "matrix": [
+        "M",
+        43
+      ],
+      "shadow": {
+        "matrix": [
+          "A",
+          56
+        ]
+      },
+      "verified": true,
+      "note": "A 56 lifted on its own: the shadow rose"
+    },
+    "122": {
+      "kind": "item store",
+      "matrix": [
+        "M",
+        20
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 30,
+          "centre": [
+            292,
+            206
+          ],
+          "vertices": 8
+        }
+      },
+      "verified": true
+    },
+    "152": {
+      "kind": "magic store",
+      "matrix": [
+        "M",
+        5
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 30,
+          "centre": [
+            317,
+            -53
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true,
+      "note": "the fan at (343, -102) in the same mesh is a tree shadow"
+    },
+    "170": {
+      "kind": "castle",
+      "matrix": [
+        "M",
+        24
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            123,
+            369
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "218": {
+      "kind": "item store",
+      "matrix": [
+        "M",
+        2
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "A",
+          "mesh": 18,
+          "centre": [
+            458,
+            -565
+          ],
+          "vertices": 10
+        }
+      },
+      "verified": true,
+      "note": "verified by collapsing the whole mesh piece"
+    },
+    "237": {
+      "kind": "item store",
+      "matrix": [
+        "M",
+        45
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            29,
+            -300
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true
+    },
+    "268": {
+      "kind": "magic store",
+      "matrix": [
+        "M",
+        44
+      ],
+      "shadow": {
+        "matrix": [
+          "A",
+          57
+        ]
+      },
+      "verified": true,
+      "note": "A 57 lifted on its own: the shadow rose"
+    },
+    "287": {
+      "kind": "magic store",
+      "matrix": [
+        "N",
+        32
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -397,
+            -368
+          ],
+          "vertices": 10
+        }
+      },
+      "verified": true
+    },
+    "311": {
+      "kind": "castle",
+      "matrix": [
+        "N",
+        37
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim1",
+          "mesh": 13,
+          "centre": [
+            -411,
+            -537
+          ],
+          "vertices": 5
+        }
+      },
+      "verified": true
+    },
+    "314": {
+      "kind": "item store",
+      "matrix": [
+        "N",
+        33
+      ],
+      "shadow": {
+        "cluster": {
+          "file": "Anim2",
+          "mesh": 6,
+          "centre": [
+            -273,
+            -533
+          ],
+          "vertices": 4
+        }
+      },
+      "verified": true,
+      "note": "tilted quad, 7.6 units of height; a flat-only search misses it"
+    }
   },
   "not_matrix_placed": {
     "_": "buildings that are not placed by a matrix of F00_M/F00_N, or that have not been identified yet",
-    "weapon stores": [24, 105, 133, 202, 246, 304],
-    "castles": [14, 123, 199, 260],
-    "magic store": [2],
+    "weapon stores": [
+      24,
+      105,
+      133,
+      202,
+      246,
+      304
+    ],
+    "castles": [
+      14,
+      123,
+      199,
+      260
+    ],
+    "magic store": [
+      2
+    ],
     "towns": "the stone-disc villages have not been looked at"
   }
 }
