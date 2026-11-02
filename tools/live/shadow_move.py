@@ -1,7 +1,7 @@
 """Move ONE connected cluster of vertices of a mesh piece in the RUNNING game (for example a single shadow in a shared batch).
 
 usage: python shadow_move.py <pid> <F00_X.model as the game loaded it> <geom index> <x> <z> <dx> <dz>
-The cluster is the set of vertices connected through triangles whose bounding box is centred nearest to (x, z). Its positions are
+(x, z) are ORIGINAL coordinates, as in the model file, even for a cluster that was moved earlier. The cluster is the set of vertices connected through triangles whose bounding box is centred nearest to (x, z). Its positions are
 shifted by (dx, dz) in memory; use dx = dz = 0 to just see which cluster would be picked. Moves add to what is in memory now, so the opposite shift undoes a move.
 """
 import ctypes
@@ -48,16 +48,20 @@ if dx == 0 and dz == 0:
 
 vo, _ = m.chunk("VERT")
 block = bytes(m.data[vo + g.vert_offset: vo + g.vert_offset + g.stride * g.verts])
-# search on the longest run of vertices that are NOT in the cluster, so an earlier move of the cluster does not hide the mesh
+# the mesh is located by several short runs of vertices outside the cluster: an earlier move of another cluster in the same mesh then
+# only spoils the runs it touches
 inside = set(best)
-runs, start = [], 0
-for i in range(g.verts + 1):
-    if i == g.verts or i in inside:
-        if i > start:
-            runs.append((start, i))
-        start = i + 1
-run_lo, run_hi = max(runs, key=lambda r: r[1] - r[0])
-needle = block[run_lo * g.stride: run_hi * g.stride]
+needles: dict[bytes, int] = {}
+free = [lo for lo in range(0, g.verts - 12, 6) if not any(v in inside for v in range(lo, lo + 12))]
+for lo in free[:: max(1, len(free) // 6)][:6]:                 # at most six runs, spread over the mesh
+    needles[block[lo * g.stride:(lo + 12) * g.stride]] = lo
+if not needles:                                   # a small mesh: search for the whole block, as it is, or as it would be if this very move undoes an earlier one
+    needles[block] = 0
+    shifted = bytearray(block)
+    for i in best:
+        x, y, z = struct.unpack_from("<3f", block, i * g.stride)
+        struct.pack_into("<3f", shifted, i * g.stride, x - dx, y, z - dz)
+    needles[bytes(shifted)] = 0
 k = ctypes.WinDLL("kernel32", use_last_error=True)
 k.OpenProcess.restype = wt.HANDLE
 k.ReadProcessMemory.argtypes = [wt.HANDLE, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
@@ -71,20 +75,23 @@ class MBI(ctypes.Structure):
 
 
 h = k.OpenProcess(0x0438, False, pid)
-a, mbi, found = 0, MBI(), []
+a, mbi, votes = 0, MBI(), {}
 while a < 0x7FFFFFFFFFFF and k.VirtualQueryEx(h, ctypes.c_void_p(a), ctypes.byref(mbi), ctypes.sizeof(mbi)):
     b, s = mbi.Base or 0, mbi.Size
-    if mbi.State == 0x1000 and mbi.Protect & 0x04 and s >= len(needle):
+    if mbi.State == 0x1000 and mbi.Protect & 0x04 and s >= min(len(nd) for nd in needles):
         buf = ctypes.create_string_buffer(s)
         n = ctypes.c_size_t()
         k.ReadProcessMemory(h, ctypes.c_void_p(b), buf, s, ctypes.byref(n))
-        d, p = buf.raw[:n.value], 0
-        while (p := d.find(needle, p)) != -1:
-            found.append(b + p - run_lo * g.stride)
-            p += 1
+        d = buf.raw[:n.value]
+        for nd, lo in needles.items():
+            p = 0
+            while (p := d.find(nd, p)) != -1:
+                votes[b + p - lo * g.stride] = votes.get(b + p - lo * g.stride, 0) + 1
+                p += 1
     a = b + s
     if a <= b:
         break
+found = [addr for addr, v in votes.items() if v >= (1 if len(needles) <= 2 else 2)]       # two independent runs agree on where the mesh starts
 print(f"mesh found {len(found)}x in memory")
 for base in found:
     for i in best:
