@@ -1,501 +1,98 @@
 {
-  "_about": "Board 0 buildings that stand on a transform matrix, and the shadow that goes with each. Found with the hide/lift/move tests in tools/live and tools/testpatch. 'matrix' = [model file, index in its MTRX chunk]; a shadow is either a vertex cluster {file, mesh, centre [x, z], vertices} inside a shared batch mesh (move by shifting its vertices, the centre is the cluster's ORIGINAL position) or a matrix. verified = seen moving in the running game.",
-  "buildings": {
-    "18": {
-      "kind": "item store",
-      "matrix": [
-        "N",
-        46
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -409,
-            144
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "59": {
-      "kind": "item store",
-      "matrix": [
-        "N",
-        14
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -165,
-            -130
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "69": {
-      "kind": "item store",
-      "matrix": [
-        "N",
-        15
-      ],
-      "shadow": {
-        "matrix": [
-          "A",
-          193
-        ]
-      },
-      "verified": true,
-      "note": "N 15 or N 27 is the building (both are near 69); A 133 and A 138 are mushrooms"
-    },
-    "76": {
-      "kind": "castle",
-      "matrix": [
-        "N",
-        1
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -174,
-            177
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "87": {
-      "kind": "magic store",
-      "matrix": [
-        "M",
-        43
-      ],
-      "shadow": {
-        "matrix": [
-          "A",
-          56
-        ]
-      },
-      "verified": true,
-      "note": "A 56 lifted on its own: the shadow rose"
-    },
-    "122": {
-      "kind": "item store",
-      "matrix": [
-        "M",
-        20
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 30,
-          "centre": [
-            292,
-            206
-          ],
-          "vertices": 8
-        }
-      },
-      "verified": true
-    },
-    "152": {
-      "kind": "magic store",
-      "matrix": [
-        "M",
-        5
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 30,
-          "centre": [
-            317,
-            -53
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true,
-      "note": "the fan at (343, -102) in the same mesh is a tree shadow"
-    },
-    "170": {
-      "kind": "castle",
-      "matrix": [
-        "M",
-        24
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            123,
-            369
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "218": {
-      "kind": "item store",
-      "matrix": [
-        "M",
-        2
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 18,
-          "centre": [
-            458,
-            -565
-          ],
-          "vertices": 10
-        }
-      },
-      "verified": true,
-      "note": "verified by collapsing the whole mesh piece"
-    },
-    "237": {
-      "kind": "item store",
-      "matrix": [
-        "M",
-        45
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            29,
-            -300
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "268": {
-      "kind": "magic store",
-      "matrix": [
-        "M",
-        44
-      ],
-      "shadow": {
-        "matrix": [
-          "A",
-          57
-        ]
-      },
-      "verified": true,
-      "note": "A 57 lifted on its own: the shadow rose"
-    },
-    "287": {
-      "kind": "magic store",
-      "matrix": [
-        "N",
-        32
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -397,
-            -368
-          ],
-          "vertices": 10
-        }
-      },
-      "verified": true
-    },
-    "311": {
-      "kind": "castle",
-      "matrix": [
-        "N",
-        37
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim1",
-          "mesh": 13,
-          "centre": [
-            -411,
-            -537
-          ],
-          "vertices": 5
-        }
-      },
-      "verified": true
-    },
-    "314": {
-      "kind": "item store",
-      "matrix": [
-        "N",
-        33
-      ],
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -273,
-            -533
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true,
-      "note": "tilted quad, 7.6 units of height; a flat-only search misses it"
-    }
+  "_about": "Board 0 stores and castles as units: everything drawn for one space, so a building is moved as one piece (tools/boardview/units.py). The sign is not listed: it follows the space record through the nameplate and sign placement lists in stg000. Found with the hide/lift/move tests in tools/live and tools/testpatch; every part was seen moving in the running game.",
+  "_parts": {
+    "matrix": "[model, index in its MTRX chunk]: the translation is moved",
+    "cluster": "[model, mesh]: the ONE set of vertices connected through triangles whose centre is nearest to `centre` (original coordinates); `vertices` is its size, checked when it is picked",
+    "area": "[model, mesh]: every cluster of welded vertices (vertices that share a position count as one) whose centre is within `radius` of `centre`; used for buildings baked into a batch mesh in world coordinates",
+    "role": "building, shadow or decor (what the part draws)",
+    "adjust": "optional [x, y, z] added to a part's move when the unit leaves home",
+    "models": "M, N, A, Anim1, Anim2 = CommonData/dataField/F00/F00_<model>.model"
   },
-  "not_matrix_placed": {
-    "_": "still to map",
-    "buildings": "castle 14, the bodies of the six weapon stores and their emblem transforms",
-    "towns": "the stone-disc villages have not been looked at"
+  "units": {
+    "2": {"kind": "magic store", "parts": [
+      {"role": "building", "area": ["N", 59], "centre": [-580, 155], "radius": 18, "note": "radius 11 leaves the steps' neighbours; 18 also takes the purple mushrooms around it"},
+      {"role": "shadow", "cluster": ["A", 221], "centre": [-584, 159], "vertices": 4}]},
+    "18": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["N", 46]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-409, 144], "vertices": 4}]},
+    "59": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["N", 14]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-165, -130], "vertices": 4}]},
+    "69": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["N", 15], "note": "N 15 or N 27 is the building (both are near 69)"},
+      {"role": "shadow", "matrix": ["A", 193], "note": "A 133 and A 138 nearby are mushrooms"}]},
+    "76": {"kind": "castle", "parts": [
+      {"role": "building", "matrix": ["N", 1]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-174, 177], "vertices": 4}]},
+    "87": {"kind": "magic store", "parts": [
+      {"role": "building", "matrix": ["M", 43]},
+      {"role": "shadow", "matrix": ["A", 56]}]},
+    "122": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["M", 20]},
+      {"role": "shadow", "cluster": ["A", 30], "centre": [292, 206], "vertices": 8}]},
+    "123": {"kind": "castle", "parts": [
+      {"role": "building", "area": ["M", 5], "centre": [372, 240], "radius": 25},
+      {"role": "shadow", "cluster": ["A", 12], "centre": [367, 244], "vertices": 8, "adjust": [-4, 0, 0], "note": "mountains hide the shifted shadow on screen; at home it sits a little +x of the castle, which the mountains hide, so a moved one goes 4 further -x (at space 122: none looked too far +x, 8 too far -x)"}]},
+    "152": {"kind": "magic store", "parts": [
+      {"role": "building", "matrix": ["M", 5]},
+      {"role": "shadow", "cluster": ["A", 30], "centre": [317, -53], "vertices": 4, "note": "the fan at (343, -102) in the same mesh is a tree shadow"}]},
+    "170": {"kind": "castle", "parts": [
+      {"role": "building", "matrix": ["M", 24]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [123, 369], "vertices": 4}]},
+    "199": {"kind": "castle", "parts": [
+      {"role": "building", "area": ["M", 2], "centre": [547, -372], "radius": 25},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [547, -368], "vertices": 4}]},
+    "218": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["M", 2]},
+      {"role": "shadow", "cluster": ["A", 18], "centre": [458, -565], "vertices": 10}]},
+    "237": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["M", 45]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [29, -300], "vertices": 4}]},
+    "260": {"kind": "castle", "parts": [
+      {"role": "building", "area": ["M", 43], "centre": [-79, -483], "radius": 30},
+      {"role": "shadow", "matrix": ["A", 47]},
+      {"role": "decor", "matrix": ["A", 60], "note": "identical to A 47; together they hold the shadow and a pair of palm trees, which travel with the castle"}]},
+    "268": {"kind": "magic store", "parts": [
+      {"role": "building", "matrix": ["M", 44]},
+      {"role": "shadow", "matrix": ["A", 57]}]},
+    "287": {"kind": "magic store", "parts": [
+      {"role": "building", "matrix": ["N", 32]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-397, -368], "vertices": 10}]},
+    "311": {"kind": "castle", "parts": [
+      {"role": "building", "matrix": ["N", 37]},
+      {"role": "shadow", "cluster": ["Anim1", 13], "centre": [-411, -537], "vertices": 5}]},
+    "314": {"kind": "item store", "parts": [
+      {"role": "building", "matrix": ["N", 33]},
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-273, -533], "vertices": 4, "note": "tilted quad, 7.6 units of height; a flat-only search misses it"}]}
   },
-  "shadows_only": {
-    "_": "Stores and castles whose building is not on an F00_M/F00_N matrix (so the building itself is not mapped yet), but whose shadow is located and verified by moving it in the running game. Centres are original positions.",
-    "2": {
-      "kind": "magic store",
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 221,
-          "centre": [
-            -584,
-            159
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "14": {
-      "kind": "castle",
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -503,
-            114
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "24": {
-      "kind": "weapon store",
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 214,
-          "centre": [
-            -398,
-            76
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "105": {
-      "kind": "weapon store",
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            -33,
-            15
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "123": {
-      "kind": "castle",
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 12,
-          "centre": [
-            367,
-            244
-          ],
-          "vertices": 8
-        }
-      },
-      "verified": true,
-      "note": "mountains hide the shifted shadow on screen"
-    },
-    "133": {
-      "kind": "weapon store",
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            447,
-            147
-          ],
-          "vertices": 6
-        }
-      },
-      "verified": true
-    },
-    "199": {
-      "kind": "castle",
-      "shadow": {
-        "cluster": {
-          "file": "Anim2",
-          "mesh": 6,
-          "centre": [
-            547,
-            -368
-          ],
-          "vertices": 4
-        }
-      },
-      "verified": true
-    },
-    "202": {
-      "kind": "weapon store",
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 17,
-          "centre": [
-            333,
-            -425
-          ],
-          "vertices": 6
-        }
-      },
-      "verified": true
-    },
-    "246": {
-      "kind": "weapon store",
-      "shadow": {
-        "matrix": [
-          "A",
-          191
-        ]
-      },
-      "verified": true
-    },
-    "260": {
-      "kind": "castle",
-      "shadow": {
-        "matrix": [
-          "A",
-          47
-        ]
-      },
-      "verified": true,
-      "note": "A 47 and A 60 are identical matrices and move together; the lift also moved a pair of palm trees that look like part of the shadow"
-    },
-    "304": {
-      "kind": "weapon store",
-      "shadow": {
-        "cluster": {
-          "file": "A",
-          "mesh": 205,
-          "centre": [
-            -379,
-            -481
-          ],
-          "vertices": 7
-        }
-      },
-      "verified": true
-    }
-  },
-  "baked_buildings": {
-    "_": "Buildings that are not placed by a matrix. They are clusters of welded vertices (vertices that share a position) in a batch mesh, in WORLD coordinates (raw = world), so a building is moved by adding the same offset to all of its vertices. Select them with: every welded cluster of the mesh whose centre is within `radius` of `centre`. Verified in the running game (lift by 60).",
-    "2": {
-      "kind": "magic store",
-      "file": "N",
-      "mesh": 59,
-      "centre": [
-        -580,
-        155
-      ],
-      "radius": 18,
-      "note": "radius 11 leaves the steps' neighbours; 18 also takes the purple mushrooms around it"
-    },
-    "123": {
-      "kind": "castle",
-      "file": "M",
-      "mesh": 5,
-      "centre": [
-        372,
-        240
-      ],
-      "radius": 25
-    },
-    "199": {
-      "kind": "castle",
-      "file": "M",
-      "mesh": 2,
-      "centre": [
-        547,
-        -372
-      ],
-      "radius": 25
-    },
-    "260": {
-      "kind": "castle",
-      "file": "M",
-      "mesh": 43,
-      "centre": [
-        -79,
-        -483
-      ],
-      "radius": 30,
-      "note": "the palm trees around it are matrices A47/A60, which are also its shadow"
-    }
+  "incomplete": {
+    "_": "Spaces whose shadow is mapped but whose building is not, so they cannot move yet.",
+    "14": {"kind": "castle", "parts": [
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-503, 114], "vertices": 4}]},
+    "24": {"kind": "weapon store", "parts": [
+      {"role": "shadow", "cluster": ["A", 214], "centre": [-398, 76], "vertices": 4}]},
+    "105": {"kind": "weapon store", "parts": [
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [-33, 15], "vertices": 4}]},
+    "133": {"kind": "weapon store", "parts": [
+      {"role": "shadow", "cluster": ["Anim2", 6], "centre": [447, 147], "vertices": 6}]},
+    "202": {"kind": "weapon store", "parts": [
+      {"role": "shadow", "cluster": ["A", 17], "centre": [333, -425], "vertices": 6}]},
+    "246": {"kind": "weapon store", "parts": [
+      {"role": "shadow", "matrix": ["A", 191]}]},
+    "304": {"kind": "weapon store", "parts": [
+      {"role": "shadow", "cluster": ["A", 205], "centre": [-379, -481], "vertices": 7}]}
   },
   "weapon_store_emblems": {
     "_": "The golden sword-and-shield emblem above each weapon store: a 749-vertex piece with the same raw coordinates for every store (centre (-389, 61)); a per-store transform that is not in the matrix list places it. Found by lifting each piece by a different height. The store bodies (walls, door, steps) are separate pieces and not mapped yet.",
-    "133": {
-      "file": "M",
-      "mesh": 9
-    },
-    "202": {
-      "file": "M",
-      "mesh": 12
-    },
-    "105": {
-      "file": "M",
-      "mesh": 59
-    },
-    "246": {
-      "file": "N",
-      "mesh": 12
-    },
-    "304": {
-      "file": "N",
-      "mesh": 33,
-      "confidence": "medium"
-    },
-    "24": {
-      "file": "N",
-      "mesh": 34,
-      "confidence": "medium"
-    }
+    "133": {"file": "M", "mesh": 9},
+    "202": {"file": "M", "mesh": 12},
+    "105": {"file": "M", "mesh": 59},
+    "246": {"file": "N", "mesh": 12},
+    "304": {"file": "N", "mesh": 33, "confidence": "medium"},
+    "24": {"file": "N", "mesh": 34, "confidence": "medium"}
+  },
+  "not_mapped": {
+    "buildings": "castle 14, the bodies of the six weapon stores and their emblem transforms",
+    "towns": "the stone-disc villages have not been looked at"
   }
 }
