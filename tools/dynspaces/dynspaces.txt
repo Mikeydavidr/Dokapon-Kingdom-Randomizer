@@ -1,0 +1,4 @@
+# dynspaces: copy next to DkkStm.exe together with bin\dinput8.dll.
+# "swap A B": on even weeks, board spaces A and B trade kind, loot/encounter table and disc; on odd weeks they are put back.
+# 36 = the plain next to Dokapon Castle, 39 = the Item space beside it.
+swap 36 39
