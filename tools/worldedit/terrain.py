@@ -75,6 +75,7 @@ ICE_WALL = {"u": (0.502, 0.62), "v": (0.252, 0.498), "inner": 0.0, "outer": 1.5,
 ICE_RIM = {"u": (0.627, 0.748), "v": (0.252, 0.498), "inner": 6.0, "outer": 1.0, "repeat": 30.0, "transposed": True}
 # (the game's animated wave_01 strips, see_st.tga, are no surf: they are the light lanes along the sea routes between
 # Ocean spaces, kept by build_world.py; a shore's foam is the outer end of its beach strip)
+POND_RIM = {**ICE_RIM, "inner": 2.5, "outer": 1.0}   # the rim round a snow pond on land
 OPEN = (0.45, 0.8)                       # openness (meshes()): from closed-in water to the open sea, for the shore kinds
 # where the grass of the game's strips stops (fieldC, measured): the beach strip is grass up to u 0.43, then sand, foam at
 # 0.57 and water; the edge strip is grass up to its ragged end at u 0.17. BEACH is laid with u 0.43 on the shore line.
@@ -757,6 +758,9 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
     kept = {}
     for code in OVERLAYS:
         m = grid.cells == ord(code)
+        if code == "w":
+            # the game's snow ponds fill out past the cells' edges (their soft rim lies outside): one cell wider
+            m = ndimage.binary_dilation(m) & ~np.isin(grid.cells, np.frombuffer((WATER + "p").encode("ascii"), np.uint8))
         if code != "w":
             m &= inland
             lab, n = ndimage.label(m)                      # and no specks are left where the margin cut a patch apart
@@ -903,6 +907,11 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
             dry = ease([max(1.0, next((d for d in range(1, int(EDGE["outer"]) + 3)
                                        if grid.code_at(p[0] + n[0] * d, p[1] + n[1] * d) == "."), 99) - 2.0)
                         for p, n in zip(pts, nrm)], closed)
+            if code == "w":
+                # snow has a smooth pale rim, not the grass's ragged edge
+                ribbon(beach, pts, closed, POND_RIM, OVERLAY_Y + 0.08, mask=grassy, nrm=nrm,
+                       lift=grid.lift if raised.any() else None)
+                continue
             ribbon(edge, pts, closed, EDGE, EDGE_Y, flip=True, mask=grassy, colour=tint, nrm=nrm, reach=dry,
                    lift=grid.lift if raised.any() else None)
     out["edge"] = edge
