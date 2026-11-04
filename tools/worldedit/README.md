@@ -85,7 +85,7 @@ Shaders:
 1. **Ground grid.** The ground is a grid of 5-unit cells, one letter each:
    - `.` sea, `g` grass, `f` forest, `s` sand, `w` snow, `d` dirt, `p` poison, `m` swamp, `o` moat.
    - A second layer, `levels`, gives each cell a height: `0` the ground, `1` a plateau 7 units up, `/` a slope between them (its height eased by distance to the nearest ground and plateau cells). The editor paints it under "Height".
-   - `terrain.classify_model_files` reads the game's own board into this grid. It takes the highest fill triangle over each cell, then lets the game's strips redraw the shore: the grass end of a beach or edge strip is land, the sand and surf end of a beach strip is water. The plateau levels come from the fills' heights (hill tops above y 18 are left to the hill props).
+   - `terrain.classify_model_files` reads the game's own board into this grid. It takes the highest fill triangle over each cell, then lets the game's strips redraw the shore: the grass end of a beach or edge strip is land, the sand and surf end of a beach strip is water. The plateau levels come from the fills' heights (the tops of the hills, small pieces above y 18, are left to the hill props; the mounds in the big ground pieces, such as the one by Dokapon Castle, become plateaus).
 2. **Fills.** Each ground's cell field is smoothed. Fills follow its 0.5 contour (marching squares), so their borders are curves.
    - Land gets a grass floor, with forest blended in by vertex colour.
    - Overlays (sand, snow, dirt, poison, swamp) are drawn over it.
@@ -95,7 +95,9 @@ Shaders:
    - Surf banks plus a grass edge on the narrowest water (under 18 units: the ends of creeks).
    - Moats: rock walls from the ground down to water at y -2.5 (in the moat piece, N 42), the grass edge lying over their rims and hanging down; a moat is not a shore, so it gets no beach or surf.
    - Grass edges around overlays, where there is grass beside them.
-   - Cliffs along the edges of plateaus and slopes, from the raised ground down to the ground or into the sea; a raised shore has no beach or surf.
+   - Cliffs along the edges of plateaus and slopes, from the raised ground down to the ground or into the sea; a raised shore has no beach. Each cliff has a nearly straight wall behind it (closing the side where a tight bend leaves out quads of the leaning one), and in the sea the beach strip's foam along its foot, as the game's cliffs have.
+   - Overlays (sand, dirt, poison, swamp; not snow) stay 3 cells back from the water, so grass lies between them and a beach, as on the game's board.
+   - Where a road climbs onto a plateau too steeply (more than 2 units in 5), the cells around the climb become a slope.
    - The sea plane is drawn again, with a rectangular hole over each moat (its box, one cell larger).
    - Everything on a plateau or slope is raised: its fills, edges, spaces, roads, trees and shadows. A bridge slopes from the ground at one end to the ground at the other.
 4. **Where the meshes go.** Every mesh goes into a game piece that has the right layer, texture and shader, and that the board would hide anyway. Pieces can grow, up to 60,000 vertices each.
@@ -176,7 +178,7 @@ A kit says which of a dungeon family's own textures draw which ground. It also r
 
 ## Not done yet
 
-- **Plateaus:** only one plateau height, and no cliffs between a slope's sides and the ground. Checked in tilted renders (`render_top.py --tilt 50`), not yet in game.
+- **Plateaus:** only one plateau height, and no cliffs between a slope's sides and the ground. The game's smooth mounds (by Dokapon Castle) become plateaus with cliffs, and the Lost Forest's south edge, a slope in the game, is a cliff. Checked in tilted renders (`render_top.py --tilt 50`), not yet in game.
 - **Shadows:** buildings have no shadows (their shadows are mixed into shared batch pieces; `units.py` knows some of them). The seven tree shadows the game drapes over cliffs are left out.
 - **Moats:** checked in renders only. A moat's sea hole is its whole box, so a moat that reaches the sea leaves sunk water there; roads cross a moat with no bridge.
 - **Decorations:** checked in renders only. A decoration moved onto other ground keeps the game's height above the old spot (plateaus apart).
@@ -189,3 +191,16 @@ A kit says which of a dungeon family's own textures draw which ground. It also r
 - **Not checked in game:**
   - Whether the game culls pieces by the bounding boxes of their parent nodes. If generated ground vanishes at some camera angles, that is the first thing to check.
   - Whether the vertex-colour forest tint shows.
+
+## Comparing a rebuild with the original
+
+- `views.py <Assets> <out>`: renders both boards through the game's tilted camera (`render3d.py`: depth buffer, textures, alpha, no fog) at every space and ranks the views by difference, with side-by-side images of the worst. About 8 minutes for all 337; `--only 80,20` or `--at x,z` for a few.
+- `structure.py <Assets> <out>`: reads the ground and heights of both boards from their model files and lists where they differ (ground codes, and real heights).
+- `compare.py <Assets> <out>`: the same on the flat top-down picture, as a heat map.
+- `check.py <world.json> <mod>`: builds, runs structure and compare, prints one line and appends it to `check_history.jsonl` so a change shows as a number.
+
+The renderers are not the game's own (no fog, lighting or water animation), so a high score says where to look.
+
+## Heights and shadows
+
+`terrain.heights` (optional, per cell, 0.5 units a step) stores how high raised cells really are, so plateaus can stand 12-15 up and slopes keep the game's shape; cells without one use the level's own height. Cliffs lean 0.3 per unit of drop (measured from the game's). Props of type `shade` are the game's other shadows (under buildings, mountains and bushes, and the soft blobs on grass), copied at the game's height.

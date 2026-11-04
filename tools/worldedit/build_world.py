@@ -110,6 +110,10 @@ def main() -> None:
     by_id = {s["id"]: s for s in w["spaces"]}
     if set(by_id) != set(old):
         sys.exit("the world must keep every space of the board (adding or removing spaces is not supported yet)")
+    # roads climb plateaus by slopes: where one would climb too steeply (up a cliff), the cells around it become a slope
+    on_land = [(a, b) for a, b in w["links"] if by_id[a]["kind"] != OCEAN and by_id[b]["kind"] != OCEAN]
+    ramps = terrain.ramp_roads(grid, [((by_id[a]["x"], by_id[a]["z"]), (by_id[b]["x"], by_id[b]["z"])) for a, b in on_land])
+    log.append(f"terrain: {ramps} slopes widened where roads climbed onto a plateau too steeply")
     # a space on the sea stays on it (the grid lifts water like the nearest land, for the cliffs' sake)
     space_lift = lambda x, z: 0.0 if grid.code_at(x, z) == "." else grid.lift(x, z)
     new = {n: (by_id[n]["x"], SPACE_Y + space_lift(by_id[n]["x"], by_id[n]["z"]), by_id[n]["z"]) for n in old}
@@ -289,11 +293,7 @@ def main() -> None:
                f"{count('water')} sea routes, {count('arrow')} with arrows, {count('lane')} by the sea lane alone")
 
     # ---- trees and mountains ----------------------------------------------------------------------------------------------
-    prop_parts = props.build({f: igbmodel.load(F00 / f"F00_{f}.model") for f in FILES}, w.get("props", []) + bridges,
-                             terrain.BASE_Y, F00, shadow_y=terrain.OVERLAY_Y + 0.12, lift=grid.lift)
     prop_pieces = props.pieces(F00)
-    log.append(f"props: {len(w.get('props', []))} ({sum(1 for p in w.get('props', []) if p['t'] == 'tree')} trees) "
-               f"in {len(prop_parts)} pieces")
 
     # ---- the model files ----------------------------------------------------------------------------------------------------
     specials = [s["id"] for s in spaces if 0x14 <= s["type"][0] <= 0x1D or s["type"][0] >= 0x26]
@@ -327,6 +327,15 @@ def main() -> None:
                 plan[key] = "hide"
                 kind = (nd["name"], tex[nd["texture"]] if nd["texture"] >= 0 else "")
                 free.setdefault(kind, []).append(key)
+    # the shadows (props of type shade) of pieces the build keeps as they are (a building's own) are still there: only the
+    # ones in pieces it hides or rewrites are drawn again
+    templates = props.templates(F00)
+    own = [p for p in w.get("props", []) if p["t"] == "shade" and plan.get(templates[p["v"]]["piece"]) in ("keep", "building", "area", "pivot")]
+    placed = [p for p in w.get("props", []) if p not in own]
+    prop_parts = props.build({f: igbmodel.load(F00 / f"F00_{f}.model") for f in FILES}, placed + bridges,
+                             terrain.BASE_Y, F00, shadow_y=terrain.OVERLAY_Y + 0.12, lift=grid.lift)
+    log.append(f"props: {len(placed)} ({sum(1 for p in placed if p['t'] == 'tree')} trees, "
+               f"{sum(1 for p in placed if p['t'] == 'shade')} shadows) in {len(prop_parts)} pieces")
     assign = {}                                        # (file, piece) -> list of (channel, Mesh) parts
     used = set()
     for ch, ms in meshes.items():

@@ -7,8 +7,9 @@ What they are on board 0 (F00 model files):
             shadow: a quad about 48 x 42 of the fieldC shadow blob in a road_shadow piece, about (-5, +7) from the tree.
             A copy of a tree has its template's shadow, or none.
   mountain  one cluster in a mountain_01 / mountain_02 piece (MTA.tga), its foot sunk a little into the ground
-  hill      a small grassy plateau: a ring of rock-strata cliff (a town_01 piece of its own, objes.tga) and its raised grass
-            top (a green_01 piece of its own); four on the board (N 10+11, N 31+32, N 52+53, M 56+57)
+  hill      a small grassy plateau: a ring of rock-strata cliff (a town_01 piece of its own, objes.tga), its raised grass
+            top (a green_01 piece of its own) and the ragged grass edge round the top (in a shared road_side piece); four
+            on the board (N 10+11, N 31+32, N 52+53, M 56+57)
   bridge    an arched wooden bridge 22 units long and 14 wide (deck, six posts, two rails; fieldC plank tile, road_01), along
             x or along z; the two in F00_N piece 55 serve as templates. build_world.py puts them where roads cross rivers.
             Over the snow the game's bridge (along x) has snow caps on its rails and deck: "bridge:x:snow".
@@ -38,9 +39,12 @@ TRUNK_LIFT = 0.5                             # a tree with a trunk: the trunk's 
 BARK = (0.36, 0.24, 0.52, 0.39)              # the fieldC bark tile
 TRUNK_OFFSET, TRUNK_REACH = (1.5, -5.5), 5.0  # a trunk's middle from its crown's middle, give or take TRUNK_REACH
 DECO = ("clover", "flowers", "mushroom", "ice")
-KEEP_Y = {"hill", "bridge", *DECO}           # placed at the game's own height (the board's ground is the game's: y 7)
+KEEP_Y = {"hill", "bridge", "shade", *DECO}           # placed at the game's own height (the board's ground is the game's: y 7)
 BRIDGE_HALF = 11.0                           # half a bridge's length: where its two ends are
-EXCLUDE = {("A", 25)}                        # the Lava Cave's piece: build_world.py keeps the cave with its space
+# the Lava Cave is two clusters of a mountain piece (within this radius of its middle): build_world.py keeps them in that
+# piece with their space; the piece's other clusters (the mountains by Yukon, spaces 124-128) are copied into another
+EXCLUDE = {("A", 25): ((413.0, 66.0), 30.0)}
+MOUNTAIN_MOVED = {("A", 25): ("A", 14)}
 FILES = ["A", "M", "N", "Anim1", "Anim2", "wood"]
 SHADOW_OFFSET, SHADOW_REACH = (-4.9, 6.6), 10.0   # a tree's shadow from the tree's middle, give or take SHADOW_REACH
 SHADOW_TILE = (0.81, 0.80, 0.88, 0.89)       # the fieldC tree shadow (only 64 of the 219 trees have a flat one)
@@ -97,11 +101,16 @@ def templates(F00: Path) -> dict[str, dict]:
     for f, layers in SOURCES.items():
         m = models[f]
         for gi, nd in enumerate(m.mesh_nodes()):
-            if nd["name"] not in layers or (f, gi) in EXCLUDE:
+            if nd["name"] not in layers:
                 continue
             part = _part(m, f, gi)
             for n, c in enumerate(sorted(clusters([part["world"][i] for i in part["verts"]], part["tris"], weld=True), key=min)):
-                out[f"{f}:{gi}:{n}"] = _measure({"type": TYPES[nd["name"]], "parts": [_part(m, f, gi, c)]})
+                t = _measure({"type": TYPES[nd["name"]], "parts": [_part(m, f, gi, c)]})
+                if (f, gi) in EXCLUDE and _dist(t["centre"], EXCLUDE[(f, gi)][0]) <= EXCLUDE[(f, gi)][1]:
+                    continue
+                if (f, gi) in MOUNTAIN_MOVED:
+                    t["parts"][0]["into"] = MOUNTAIN_MOVED[(f, gi)]
+                out[f"{f}:{gi}:{n}"] = t
     trees = [t for t in out.values() if t["type"] == "tree"]
     # each tree's own shadow (about SHADOW_OFFSET from its middle), measured before the trunks change the middle
     for ti, si, s in _pair(trees, _tree_shadows(models), SHADOW_OFFSET, SHADOW_REACH):
@@ -118,6 +127,7 @@ def templates(F00: Path) -> dict[str, dict]:
             if "shadow_at" in t:                     # still from the crown's middle
                 t["shadow_at"] = (t["shadow_at"][0] + centre[0] - t["centre"][0], t["shadow_at"][1] + centre[1] - t["centre"][1])
     out.update(_decorations(models))
+    out.update(_shades(models))
     # hills: a town_01 piece that is all rock strata and small, with the green_01 piece over its middle as its top
     for f, m in models.items():
         o, n = m.chunk("TEXT")
@@ -143,7 +153,9 @@ def templates(F00: Path) -> dict[str, dict]:
                 if cap["width"] <= rt["width"] + 5 and d < 15 ** 2 and (best is None or d < best[0]):
                     best = (d, f2, gj)
             if best:
-                out[f"hill:{f}:{gi}"] = _measure({"type": "hill", "parts": [ring, _part(models[best[1]], best[1], best[2])]})
+                t = _measure({"type": "hill", "parts": [ring, _part(models[best[1]], best[1], best[2])]})
+                t["parts"] += _hill_rim(models, t)
+                out[f"hill:{f}:{gi}"] = t
     for kind, (sources, base) in BRIDGES.items():
         bparts = []
         for f, gi, box in sources:
@@ -156,6 +168,32 @@ def templates(F00: Path) -> dict[str, dict]:
                                         if x0 <= p[0] <= x1 and z0 <= p[2] <= z1 and _inside(uv[i], PLANK)])
             bparts.append(part)
         out[f"bridge:{kind}"] = _measure({"type": "bridge", "parts": bparts, "base": base})
+    return out
+
+
+def _hill_rim(models, t: dict) -> list[dict]:
+    """The ragged grass edge round a hill's top: the road_side triangles over its footprint, no lower than a little under
+    its top (they lie in the board's shared edge pieces). Copied into SHADOW_PIECE (the same atlas and material), drawn
+    late, like the other edges."""
+    cap_y = min(p[1] for p in t["parts"][1]["world"].values())
+    ws = [p for part in t["parts"] for p in part["world"].values()]
+    x0, x1 = min(p[0] for p in ws) - 4, max(p[0] for p in ws) + 4
+    z0, z1 = min(p[2] for p in ws) - 4, max(p[2] for p in ws) + 4
+    out = []
+    for f in FILES:
+        m = models[f]
+        for gi, nd in enumerate(m.mesh_nodes()):
+            if nd["name"] != "road_side":
+                continue
+            part = _part(m, f, gi)
+            w = part["world"]
+            tris = [tr for tr in part["tris"] if all(x0 <= w[i][0] <= x1 and z0 <= w[i][2] <= z1 for i in tr)
+                    and min(w[i][1] for i in tr) >= cap_y - 3]
+            if tris:
+                rim = _part(m, f, gi, {i for tr in tris for i in tr})
+                rim["tris"] = tris
+                rim["into"] = SHADOW_PIECE
+                out.append(rim)
     return out
 
 
@@ -258,6 +296,23 @@ def _decorations(models) -> dict[str, dict]:
             continue
         key = next(key for k, key, _ in ms if k)
         out[key] = _measure({"type": kind, "parts": [t["parts"][0] for _, _, t in ms]})
+    return out
+
+
+def _shades(models) -> dict[str, dict]:
+    """key -> template of every other shadow of the board (not a tree's, not a decoration's): the dark blobs under buildings,
+    mountains and bushes, and the big soft ones on open grass. Each is a road_shadow cluster, copied into SHADOW_PIECE.
+    'piece' is the piece it is in, so that build_world.py can leave out the ones whose piece it keeps as it is."""
+    out = {}
+    for f, gi, layer, n, c, uv in _fieldc_clusters(models, ("road_shadow",)):
+        part = _part(models[f], f, gi, c)
+        t = _measure({"type": "shade", "parts": [part], "piece": (f, gi)})
+        if _in_tile(uv, SHADOW_TILE) and 40 <= t["width"] <= 55 and t["height"] < 4:
+            continue                             # a tree's
+        if any(_in_tile(uv, box) for box, k in DECO_TILES):
+            continue                             # a decoration's
+        part["into"] = SHADOW_PIECE
+        out[f"shade:{f}:{gi}:{n}"] = t
     return out
 
 

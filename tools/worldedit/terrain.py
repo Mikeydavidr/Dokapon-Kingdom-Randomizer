@@ -68,6 +68,8 @@ EDGE = {"u": (0.002, 0.248), "v": (0.752, 0.998), "inner": 8.0, "outer": 10.0, "
 BANK = {"u": (0.561, 0.623), "v": (0.752, 0.998), "inner": 1.0, "outer": 6.0, "repeat": 50.0}
 SHORE = {**EDGE, "inner": 10.0, "outer": 6.0}
 BANK_Y, CREEK, SQUEEZE = 3.85, 18.0, 0.33
+CLIFF_FOAM = {**BANK, "inner": 0.5, "outer": 5.0}      # the foam along the foot of a cliff in the sea
+SHORE_GRASS = 3
 # snow meets the sea in an ice cliff, topped by a wavy snow lip (both run along u in the fieldC ice tile, across v)
 ICE_WALL = {"u": (0.502, 0.62), "v": (0.252, 0.498), "inner": 0.0, "outer": 1.5, "repeat": 30.0, "transposed": True}
 ICE_RIM = {"u": (0.627, 0.748), "v": (0.252, 0.498), "inner": 6.0, "outer": 1.0, "repeat": 30.0, "transposed": True}
@@ -83,8 +85,9 @@ NARROW, FAR = 40.0, 90.0
 # heights: a plateau (level '1') is PLATEAU above the ground, a slope ('/') eases between them. Its edges are leaning
 # cliffs of the objes rock-strata tile (v from its top row to its foot, u along, one repeat every 24 units), or of the
 # fieldC ice tile on snow, leaning out LEAN units per unit they drop, shaded bluish at the foot
-PLATEAU, RAMP, LEAN = 7.0, "/", 0.8
-HILL_Y = 18.0                            # fills higher than this are hill tops (props), not plateaus
+PLATEAU, RAMP, LEAN = 7.0, "/", 0.3
+HEIGHT_STEP = 0.5                       # Grid.heights: one step of a stored height
+HILL_Y = 18.0                            # fills of small pieces higher than this are hill tops (props), not plateaus
 LEVELS = {"0": "ground", "1": "plateau", RAMP: "slope"}
 STRATA = {"u": (0.377, 0.473), "v": (0.002, 0.248), "inner": 0.0, "outer": LEAN * PLATEAU, "repeat": 24.0,
           "transposed": True}
@@ -109,9 +112,14 @@ class Grid:
     """cells[j, i]: the ground code of the square [x0 + i*cell, x0 + (i+1)*cell) x [z0 + j*cell, z0 + (j+1)*cell).
     levels[j, i]: its height code (LEVELS: '0' the ground, '1' a plateau PLATEAU units higher, '/' a slope between them)."""
 
-    def __init__(self, x0: float, z0: float, cell: float, cells: np.ndarray, levels: np.ndarray | None = None):
+    def __init__(self, x0: float, z0: float, cell: float, cells: np.ndarray, levels: np.ndarray | None = None,
+                 heights: np.ndarray | None = None):
         self.x0, self.z0, self.cell, self.cells = x0, z0, cell, cells
         self.levels = levels if levels is not None else np.full(cells.shape, ord("0"), np.uint8)
+        # heights: optional, per cell, how far up the ground really is on raised cells (HEIGHT_STEP units per step; 0 = not
+        # given: the level's own height, a slope eased between its neighbours). Lets a plateau stand 12 high or a slope hold
+        # the shape the game's ground has instead of a straight ramp.
+        self.heights = heights
         self._lift = self._corners = None
 
     @property
@@ -133,6 +141,8 @@ class Grid:
                "rows": [bytes(r).decode("ascii") for r in self.cells]}
         if (self.levels != ord("0")).any():
             out["levels"] = [bytes(r).decode("ascii") for r in self.levels]
+        if self.heights is not None and self.heights.any():
+            out["heights"] = [bytes(r + ord("0")).decode("ascii") for r in self.heights]
         return out
 
     @classmethod
@@ -143,7 +153,11 @@ class Grid:
         if d.get("levels"):
             levels = np.array([list(r.encode("ascii")) for r in d["levels"]], np.uint8)
             assert levels.shape == cells.shape, "grid levels do not match its rows"
-        return cls(d["x0"], d["z0"], d["cell"], cells, levels)
+        heights = None
+        if d.get("heights"):
+            heights = np.array([[ord(ch) - ord("0") for ch in r] for r in d["heights"]], np.uint8)
+            assert heights.shape == cells.shape, "grid heights do not match its rows"
+        return cls(d["x0"], d["z0"], d["cell"], cells, levels, heights)
 
     def lifts(self) -> np.ndarray:
         """Per cell, how far its ground is above BASE_Y: 0 or PLATEAU by its level; on a slope eased between the nearest
@@ -151,17 +165,29 @@ class Grid:
         if self._lift is None:
             lv = self.levels
             out = np.where(lv == ord("1"), PLATEAU, 0.0)
-            slope = lv == ord(RAMP)
+            given = self.given()
+            out = np.where(given & (lv == ord("1")), self.heights * HEIGHT_STEP, out)
+            slope = (lv == ord(RAMP)) & ~given
+            water = np.isin(self.cells, np.frombuffer(WATER.encode("ascii"), np.uint8))
             if slope.any():
-                d0 = ndimage.distance_transform_edt(lv != ord("0"))
+                # the ground a slope eases up from is LAND at ground level: a slope that ends at the sea is a raised coast,
+                # not a ramp down to the water
+                ground = (lv == ord("0")) & ~water
+                d0 = ndimage.distance_transform_edt(~ground) if ground.any() else np.full(lv.shape, 1e3)
                 d1 = ndimage.distance_transform_edt(lv != ord("1"))
                 out = np.where(slope, PLATEAU * d0 / np.maximum(d0 + d1, 1e-6), out)
-            water = np.isin(self.cells, np.frombuffer(WATER.encode("ascii"), np.uint8))
+            out = np.where(given & (lv == ord(RAMP)), self.heights * HEIGHT_STEP, out)
             if water.any() and not water.all():
                 idx = ndimage.distance_transform_edt(water, return_distances=False, return_indices=True)
                 out = out[idx[0], idx[1]]
             self._lift = out.astype(np.float32)
         return self._lift
+
+    def given(self) -> np.ndarray:
+        """The cells whose height is stored (raised cells with a non-zero entry in heights)."""
+        if self.heights is None:
+            return np.zeros(self.cells.shape, bool)
+        return (self.heights > 0) & (self.levels != ord("0"))
 
     def corner_lifts(self) -> np.ndarray:
         """The lift at every cell corner (h+1, w+1) for slopes: a plateau's where a plateau cell touches the corner, the
@@ -174,7 +200,9 @@ class Grid:
             avg = sum(quad(lifts)) / 4
             high = np.logical_or.reduce([q == ord("1") for q in quad(lv)])
             low = np.logical_or.reduce([(q == ord("0")) & l for q, l in zip(quad(lv), quad(land))])
-            self._corners = np.where(high, PLATEAU, np.where(low, 0.0, avg)).astype(np.float32)
+            n1 = sum((q == ord("1")).astype(np.float32) for q in quad(lv))
+            top = sum(np.where(q == ord("1"), l, 0.0) for q, l in zip(quad(lv), quad(lifts))) / np.maximum(n1, 1)   # (mean of the plateau cells at a corner)
+            self._corners = np.where(high, top, np.where(low, 0.0, avg)).astype(np.float32)
         return self._corners
 
     def lift(self, x: float, z: float) -> float:
@@ -182,7 +210,7 @@ class Grid:
         between its corners (so the slope's ground, roads and spaces climb it smoothly); sharp at a cliff."""
         fi, fj = (x - self.x0) / self.cell, (z - self.z0) / self.cell
         i, j = min(max(int(math.floor(fi)), 0), self.w - 1), min(max(int(math.floor(fj)), 0), self.h - 1)
-        if self.levels[j, i] != ord(RAMP):
+        if self.levels[j, i] != ord(RAMP) and not (self.given()[j, i] and self.levels[j, i] == ord("1")):
             return float(self.lifts()[j, i])
         return _bilinear(self.corner_lifts(), min(max(fi, 0.0), self.w), min(max(fj, 0.0), self.h))
 
@@ -624,6 +652,40 @@ def ribbon(mesh: Mesh, pts: list, closed: bool, strip: dict, y, flip: bool = Fal
                   ((qb[0], up(qb, yib), qb[1]), ib, uv(ui, vb))])
 
 
+def ramp_roads(grid: Grid, roads: list, along: int = 2, across: int = 2, steep: float = 2.0, window: int = 5) -> int:
+    """Where a road (a segment from (x, z) to (x, z)) climbs onto a plateau too steeply (more than `steep` units within
+    `window`: straight up a cliff, or a slope one cell long, which gets a cliff band too), make the cells around the climb a
+    slope (`along` cells either side of it, `across` cells to each side of the road), so the road climbs it as the game's
+    roads do. Changes grid.levels; returns how many climbs it widened."""
+    lv, c, found = grid.levels, grid.cell, 0
+    land = ~np.isin(grid.cells, np.frombuffer(WATER.encode("ascii"), np.uint8))
+    cell = lambda x, z: (int((z - grid.z0) // c), int((x - grid.x0) // c))
+    marks = []
+    for (ax, az), (bx, bz) in roads:
+        length = math.hypot(bx - ax, bz - az)
+        if length < 1e-6:
+            continue
+        d = ((bx - ax) / length, (bz - az) / length)
+        at = lambda t: (ax + d[0] * t, az + d[1] * t)
+        t = window
+        while t <= length:
+            (x0, z0), (x1, z1) = at(t - window), at(t)
+            dry = all(0 <= cell(*p)[1] < grid.w and 0 <= cell(*p)[0] < grid.h and land[cell(*p)] for p in ((x0, z0), (x1, z1)))
+            if dry and abs(grid.lift(x1, z1) - grid.lift(x0, z0)) > steep:
+                found += 1
+                marks.append((at(t - window / 2), d))
+                t += 2 * along * c                                 # one climb, not every step of it
+            t += 1
+    for (x, z), d in marks:
+        for s in range(-along, along + 1):
+            for w in range(-across, across + 1):
+                jj, ii = cell(x + d[0] * s * c - d[1] * w * c, z + d[1] * s * c + d[0] * w * c)
+                if 0 <= ii < grid.w and 0 <= jj < grid.h and land[jj, ii]:
+                    lv[jj, ii] = ord(RAMP)
+    grid._lift = grid._corners = None
+    return found
+
+
 def sea(extent=(-3420.0, -1040.0, 3030.0, 1650.0), step: float = 500.0, holes=()) -> Mesh:
     """The sea: one flat plane of water at SEA_Y under the whole board, with the game's texture scale (water_test.tga
     repeats every 66.4 units), and a hole at each box of `holes` (x0, z0, x1, z1: the moats, whose water lies lower)."""
@@ -667,25 +729,52 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
     out = {}
     land = "".join(k for k in GROUNDS if k not in WATER)
     shore_land = land + "o"                                # a moat is no shore: it is cut into the land
-    forest = grid.field("f")
+    # the forest tint is the share of forest among the LAND around a corner, so it stays full right up to the shore (as the
+    # game's does) instead of fading into the sea beside it
+    forest = np.clip(grid.field("f") / np.maximum(grid.field("gfsdwpm"), 1e-3), 0, 1)
     lv = grid.levels
     raised = lv != ord("0")
 
-    def filled(codes: str, ground: Ground, y: float, **kw) -> Mesh:
-        """fill() once per height: the ground, the plateaus (PLATEAU higher) and the slopes (following the lift)."""
+    def filled(codes: str, ground: Ground, y: float, keep=None, **kw) -> Mesh:
+        """fill() once per height: the ground, the plateaus (PLATEAU higher) and the slopes (following the lift); keep:
+        only these cells (a mask)."""
         mesh, has = Mesh(), np.isin(grid.cells, np.frombuffer(codes.encode("ascii"), np.uint8))
-        for key, up, lift in ((ord("0"), 0.0, None), (ord("1"), PLATEAU, None), (ord(RAMP), 0.0, grid.lift)):
-            where = lv == key
-            if (has & where).any():
-                mesh.extend(fill(grid, codes, ground, y + up, where=where if raised.any() else None, lift=lift, **kw))
+        # (a plateau some of whose cells have a height of their own follows the lift too)
+        flat = not (grid.given() & (lv == ord("1"))).any()
+        for key, up, lift in ((ord("0"), 0.0, None), (ord("1"), PLATEAU if flat else 0.0, None if flat else grid.lift),
+                              (ord(RAMP), 0.0, grid.lift)):
+            where = lv == key if raised.any() else None
+            if keep is not None:
+                where = keep if where is None else where & keep
+            if (has & (lv == key) & (True if keep is None else keep)).any():
+                mesh.extend(fill(grid, codes, ground, y + up, where=where, lift=lift, **kw))
         return mesh
 
     out["base"] = filled(land, GROUNDS["g"], BASE_Y, colour=forest)
+    # the overlays stay SHORE_GRASS cells back from the water (snow apart: it meets the sea in its ice cliff), so that grass
+    # lies between them and a beach, as on the game's board (the beach's own grass lies under the overlays)
+    inland = ~ndimage.binary_dilation(grid.cells == ord("."), iterations=SHORE_GRASS)
+    kept = {}
     for code in OVERLAYS:
-        if (grid.cells == ord(code)).any():
-            out[code] = filled(code, GROUNDS[code], OVERLAY_Y)
+        m = grid.cells == ord(code)
+        if code != "w":
+            m &= inland
+            lab, n = ndimage.label(m)                      # and no specks are left where the margin cut a patch apart
+            sizes = np.bincount(lab.ravel())
+            m &= sizes[lab] >= 10
+        kept[code] = m
+        if m.any():
+            out[code] = filled(code, GROUNDS[code], OVERLAY_Y, keep=m)
+
+    def shown(x: float, z: float) -> str:
+        """The ground drawn at (x, z): an overlay cell held back from the water shows the grass under it."""
+        code = grid.code_at(x, z)
+        if code in kept:
+            i, j = int((x - grid.x0) // c), int((z - grid.z0) // c)
+            if not kept[code][j, i]:
+                return "g"
+        return code
     to_xz = lambda p: (grid.x0 + p[0] * c, grid.z0 + p[1] * c)
-    level_at = lambda x, z: chr(lv[min(max(int((z - grid.z0) // c), 0), grid.h - 1), min(max(int((x - grid.x0) // c), 0), grid.w - 1)])
 
     def tint(x: float, z: float) -> bytes:
         a = _bilinear(forest, min(max((x - grid.x0) / c, 0), grid.w), min(max((z - grid.z0) / c, 0), grid.h))
@@ -715,7 +804,8 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
         pts, nrm = line_of(line, closed)
         tight = settle([narrow(p, n) for p, n in zip(pts, nrm)], closed)
         # a raised shore is a cliff into the sea (drawn below with the plateau's other edges): no beach, ice or surf
-        high = settle([level_at(p[0] - n[0] * c, p[1] - n[1] * c) != "0" for p, n in zip(pts, nrm)], closed)
+        # (the low end of a slope, hardly raised, keeps its beach)
+        high = settle([grid.lift(p[0] - n[0] * c, p[1] - n[1] * c) > 1.0 for p, n in zip(pts, nrm)], closed)
         snowy = settle([grid.code_at(p[0] - n[0] * 2 * c, p[1] - n[1] * 2 * c) == "w" for p, n in zip(pts, nrm)], closed)
         snowy = [w and not h for w, h in zip(snowy, high)]
         wide = [not t and not w and not h for t, w, h in zip(tight, snowy, high)]
@@ -741,12 +831,17 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
     # the edges of plateaus and slopes: leaning cliffs from the raised ground down to the ground or into the sea (none where
     # a slope has come down to the ground)
     cliff = Mesh()
+
+    def surface(p, n) -> float:
+        """The height of the ground's surface just inside a contour point (an overlay lies a little above the grass): the
+        highest of a few points within a cell inside, so that at a narrow tip or a tight bend, where a point a cell in may
+        already be on lower ground, the wall still starts at the raised ground's edge."""
+        qs = [(p[0] - n[0] * d * c, p[1] - n[1] * d * c) for d in (0.2, 0.5, 0.8)]
+        return max(BASE_Y + grid.lift(*q) + (OVERLAY_Y - BASE_Y if grid.code_at(*q) in OVERLAYS else 0.0) for q in qs)
+
     for line, closed in contours(grid.field(land, raised)) if raised.any() else ():
         pts, nrm = line_of(line, closed)
-        # from the raised ground's surface (an overlay lies a little above the grass) down
-        tops = [BASE_Y + grid.lift(p[0] - n[0] * 0.8 * c, p[1] - n[1] * 0.8 * c)
-                + (OVERLAY_Y - BASE_Y if grid.code_at(p[0] - n[0] * 0.8 * c, p[1] - n[1] * 0.8 * c) in OVERLAYS else 0.0)
-                for p, n in zip(pts, nrm)]
+        tops = [surface(p, n) for p, n in zip(pts, nrm)]           # from the raised ground's surface down
         foot = [SEA_Y - 0.2 if grid.code_at(p[0] + n[0] * 1.5 * c, p[1] + n[1] * 1.5 * c) == "." else BASE_Y
                 for p, n in zip(pts, nrm)]
         # (where a plateau drops into a moat, the moat's wall is the cliff)
@@ -755,10 +850,19 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
         icy = settle([grid.code_at(p[0] - n[0] * 2 * c, p[1] - n[1] * 2 * c) == "w" for p, n in zip(pts, nrm)], closed)
         heights = [(t, f) for t, f in zip(tops, foot)]
         drop = [max(t - f, 0.0) / PLATEAU for t, f in zip(tops, foot)]
-        ribbon(cliff, pts, closed, STRATA, heights, mask=[s and not i for s, i in zip(steep, icy)], nrm=nrm, scale=drop,
-               sides=(WHITE, CLIFF_FOOT))
+        rock = [s and not i for s, i in zip(steep, icy)]
         cold = [s and i for s, i in zip(steep, icy)]
-        ribbon(beach, pts, closed, ICE_CLIFF, heights, mask=cold, nrm=nrm, scale=drop)
+        for kind, mask, mesh, wall in (("rock", rock, cliff, STRATA), ("ice", cold, beach, ICE_CLIFF)):
+            sides = (WHITE, CLIFF_FOOT) if kind == "rock" else None
+            ribbon(mesh, pts, closed, wall, heights, mask=mask, nrm=nrm, scale=drop, sides=sides)
+            # behind it a wall standing nearly straight (leaning just enough to face outwards: Mesh.add drops a quad with
+            # no area from above): around a bend too tight for the leaning one, whose quads are then left out, it still
+            # closes the side
+            ribbon(mesh, pts, closed, {**wall, "outer": 0.3}, heights, mask=mask, nrm=nrm, scale=drop, sides=sides)
+            # in the sea, the beach strip's foam along its foot (as the game's cliffs have)
+            out_by = [wall["outer"] * d for d in drop]
+            ribbon(beach, [(p[0] + n[0] * o, p[1] + n[1] * o) for p, n, o in zip(pts, nrm, out_by)], closed, CLIFF_FOAM,
+                   BANK_Y, mask=[m and f < BASE_Y for m, f in zip(mask, foot)], nrm=nrm)
         ribbon(beach, pts, closed, ICE_RIM, [(t + 0.08, t + 0.08) for t in tops], mask=cold, nrm=nrm)
     # moats: walls from the ground down to the sunk water, the grass's ragged edge hanging over their rims, the water, and
     # a hole in the sea plane over each
@@ -768,8 +872,7 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
         dry = "".join(k for k in GROUNDS if k != "o")
         for line, closed in contours(grid.field(dry)):
             pts, nrm = line_of(line, closed)
-            inside = [(p[0] - n[0] * 0.8 * c, p[1] - n[1] * 0.8 * c) for p, n in zip(pts, nrm)]
-            tops = [BASE_Y + grid.lift(*q) + (OVERLAY_Y - BASE_Y if grid.code_at(*q) in OVERLAYS else 0.0) for q in inside]
+            tops = [surface(p, n) for p, n in zip(pts, nrm)]
             ribbon(cliff, pts, closed, MOAT_WALL, [(t, MOAT_Y) for t in tops], nrm=nrm,
                    scale=[(t - MOAT_Y) / (BASE_Y - MOAT_Y) for t in tops], sides=(WHITE, MOAT_FOOT))
             ribbon(edge, pts, closed, MOAT_RIM, [(t + 0.05, t + 0.05) for t in tops], colour=tint, nrm=nrm)
@@ -791,9 +894,11 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
             continue
         # the grass is outside the overlay: the strip's grass end goes outside, its ragged end over the overlay,
         # and only where there is grass to come from (not along a shore)
-        for line, closed in contours(grid.field(code)):
+        for line, closed in contours(grid.field(code, kept[code])):
             pts, nrm = line_of(line, closed)
-            grassy = settle([grid.code_at(p[0] + n[0] * 1.5 * c, p[1] + n[1] * 1.5 * c) in "gf" for p, n in zip(pts, nrm)], closed)
+            # (a swamp or poison meeting sand or dirt gets the same grass edge: the game keeps a ragged grass band there)
+            beside = "gf" + ("sd" if code in "mp" else "")
+            grassy = settle([shown(p[0] + n[0] * 1.5 * c, p[1] + n[1] * 1.5 * c) in beside for p, n in zip(pts, nrm)], closed)
             # its grass stops short of water just beyond (a desert by a river)
             dry = ease([max(1.0, next((d for d in range(1, int(EDGE["outer"]) + 3)
                                        if grid.code_at(p[0] + n[0] * d, p[1] + n[1] * d) == "."), 99) - 2.0)
@@ -834,6 +939,8 @@ def classify_model_files(folder: Path, files=("A", "M", "N", "Anim1", "Anim2", "
             M = m.placement(gi)
             raw = m.data[vo + g.vert_offset: vo + g.vert_offset + g.stride * g.verts]
             pos = [igbmodel.apply(M, struct.unpack_from("<3f", raw, g.stride * i)) for i in range(g.verts)]
+            # a hill's top is a small green_01 piece of its own (the hill props); the big ground pieces have mounds too
+            small = max(max(p[0] for p in pos) - min(p[0] for p in pos), max(p[2] for p in pos) - min(p[2] for p in pos)) < 70
             uvs = [struct.unpack_from("<2f", raw, g.stride * i + 0x1c) for i in range(g.verts)]
             cols = [raw[g.stride * i + 0x18: g.stride * i + 0x1b] for i in range(g.verts)]
             for t in igbmodel.mesh(m, g)[1]:
@@ -865,7 +972,7 @@ def classify_model_files(folder: Path, files=("A", "M", "N", "Anim1", "Anim2", "
                     code = "w" if tex == "fieldC.tga" and _in(uv, atlas["w"]) and max(ys) - min(ys) < 2 else None
                 if code is None:
                     continue
-                if sum(ys) / 3 > HILL_Y:                         # the tops of the hills (props, raised on their own)
+                if sum(ys) / 3 > HILL_Y and small:               # the tops of the hills (props, raised on their own)
                     continue
                 _raster(grid, top, tri, sum(ys) / 3, ord(code))
     # the strips draw the shore over the fills: a beach strip is the coastline where its grass stops (the game's grass
@@ -904,6 +1011,7 @@ def _levels(grid: Grid, top: np.ndarray) -> None:
         return
     idx = ndimage.distance_transform_edt(~has, return_distances=False, return_indices=True)
     up = top[idx[0], idx[1]] - BASE_Y
+    grid.up = up.astype(np.float32)                              # the raw heights, for comparing two boards (structure.py)
     land = ~np.isin(grid.cells, np.frombuffer(WATER.encode("ascii"), np.uint8))
     lv = np.full(grid.cells.shape, ord("0"), np.uint8)
     lv[land & (up >= PLATEAU - 1.5)] = ord("1")
