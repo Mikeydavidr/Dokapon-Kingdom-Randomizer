@@ -389,11 +389,19 @@ def fill(grid: Grid, codes: str, ground: Ground, y: float, colour=None, shade: b
         return (x, y + (lift(x, z) if lift else 0.0), z), col, (u, v)
 
     tint = np.zeros(full.shape, np.int32)                       # whole cells merge only with cells of the same tint
-    whole = full if lift is None else np.zeros(full.shape, bool)
+    whole = full
+    if lift is not None:
+        # with a lift, only cells whose four corners are at the same height merge (a plateau's flat middle), and only with
+        # cells at that same height
+        xs, zs = x0 + np.arange(grid.w + 1) * c, z0 + np.arange(grid.h + 1) * c
+        L = np.array([[lift(x, z) if inside[j, i] else 0.0 for i, x in enumerate(xs)] for j, z in enumerate(zs)])
+        flat = (np.abs(L[:-1, :-1] - L[1:, :-1]) < 0.02) & (np.abs(L[:-1, :-1] - L[:-1, 1:]) < 0.02) & (np.abs(L[:-1, :-1] - L[1:, 1:]) < 0.02)
+        whole = full & flat
+        tint = np.round(L[:-1, :-1] * 20).astype(np.int32) * 4096
     if colour is not None:
         q = np.round(colour * 8).astype(np.int32)
-        tint = q[:-1, :-1]
-        whole = whole & (tint == q[1:, :-1]) & (tint == q[:-1, 1:]) & (tint == q[1:, 1:])
+        tint = tint + q[:-1, :-1]
+        whole = whole & (q[:-1, :-1] == q[1:, :-1]) & (q[:-1, :-1] == q[:-1, 1:]) & (q[:-1, :-1] == q[1:, 1:])
     for bj in range(0, grid.h, BLOCK):
         for bi in range(0, grid.w, BLOCK):
             bj1, bi1 = min(bj + BLOCK, grid.h), min(bi + BLOCK, grid.w)
@@ -849,7 +857,13 @@ def meshes(grid: Grid, shores: list | None = None) -> dict[str, Mesh]:
         foot = [SEA_Y - 0.2 if grid.code_at(p[0] + n[0] * 1.5 * c, p[1] + n[1] * 1.5 * c) == "." else BASE_Y
                 for p, n in zip(pts, nrm)]
         # (where a plateau drops into a moat, the moat's wall is the cliff)
+        # (a wall only where the ground really drops: off a plateau, or into the sea. A slope that comes down to the ground
+        # has no wall: it meets the ground at its own foot, whatever height its cells say)
+        def plateau_edge(p, n) -> bool:
+            i, j = int((p[0] - n[0] * 0.5 * c - grid.x0) // c), int((p[1] - n[1] * 0.5 * c - grid.z0) // c)
+            return 0 <= i < grid.w and 0 <= j < grid.h and grid.levels[j, i] == ord("1")
         steep = settle([t - f > 1.5 and grid.code_at(p[0] + n[0] * 0.5 * c, p[1] + n[1] * 0.5 * c) != "o"
+                        and (f < BASE_Y or plateau_edge(p, n))
                         for t, f, p, n in zip(tops, foot, pts, nrm)], closed)
         icy = settle([grid.code_at(p[0] - n[0] * 2 * c, p[1] - n[1] * 2 * c) == "w" for p, n in zip(pts, nrm)], closed)
         heights = [(t, f) for t, f in zip(tops, foot)]

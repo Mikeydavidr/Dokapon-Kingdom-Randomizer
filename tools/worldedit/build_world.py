@@ -64,7 +64,8 @@ ARROW_PIECE = ("Anim2", 16)
 # the light lanes along the sea routes (wave_01 pieces, see_st.tga, scrolling): along the links with an Ocean space; they
 # follow those links' spaces, and a lane whose link is gone is left out
 LANES = [("Anim2", 5), ("Anim2", 10)]
-MAX_VERTS = 60000                                      # indices are u16
+MAX_VERTS = 45000                                      # indices are u16; and a piece of 53k vertices (2.3 MB, 23k triangles) crashed the
+MAX_TRIS = 16000                                       # game on loading the board, where 36k (1.6 MB, 14k triangles) did not
 OCEAN = 0x22                                           # links between two Ocean spaces are water paths the game draws
 WATER_V = (0.53, 0.62)                                 # a road into the sea: the line turning blue (atlas rows)
 SEA_LINE_Y = 6.5                                       # the blue line between two Ocean spaces (over the lane, y 6)
@@ -540,12 +541,13 @@ def _along(m: igbmodel.Model, gi: int, ls: list, present: set | None, old: dict,
 
 
 def _split(ms: terrain.Mesh, limit: int) -> list[terrain.Mesh]:
-    """A mesh cut into meshes of at most `limit` vertices (whole triangles; triangles never share vertices across parts)."""
-    if len(ms) <= limit:
+    """A mesh cut into meshes of at most `limit` vertices and MAX_TRIS triangles (whole triangles; triangles never share
+    vertices across parts)."""
+    if len(ms) <= limit and len(ms.tris) <= MAX_TRIS:
         return [ms]
     parts, cur, remap = [], terrain.Mesh(), {}
     for t in ms.tris:
-        if len(cur) + 3 > limit:
+        if len(cur) + 3 > limit or len(cur.tris) >= MAX_TRIS:
             parts.append(cur)
             cur, remap = terrain.Mesh(), {}
         idx = []
