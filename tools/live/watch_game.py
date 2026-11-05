@@ -23,6 +23,7 @@ ap.add_argument("--exe", default="G:/Programming/Dokapon-Workspace/ActualGame/Dk
 ap.add_argument("--acc", type=lambda s: int(s, 0), default=0x13)
 ap.add_argument("--chance", type=int, default=100)
 ap.add_argument("--players", default="0,1")
+ap.add_argument("--player-byte", action="store_true", help="also watch player 0's accessory byte (read every frame: slow)")
 ap.add_argument("--out", default=None)
 opts = ap.parse_args()
 
@@ -64,7 +65,7 @@ for fn in (k.GetThreadContext, k.SetThreadContext):
 k.SuspendThread.argtypes = [wt.HANDLE]
 k.ResumeThread.argtypes = [wt.HANDLE]
 k.CreateToolhelp32Snapshot.restype = wt.HANDLE
-CTX_SIZE, CTX_DEBUG = 1232, 0x100010                 # CONTEXT_AMD64 | DEBUG_REGISTERS
+CTX_SIZE, CTX_DEBUG = 1232, 0x100011                 # CONTEXT_AMD64 | DEBUG_REGISTERS | CONTROL (Rip)
 targets = []
 
 
@@ -97,7 +98,7 @@ def set_debug_regs(tid: int, on: bool) -> bool:
         u64(addr, 0x68).value = 0
         if k.SetThreadContext(th, addr):
             raw2, addr2 = context()
-            ok = bool(k.GetThreadContext(th, addr2)) and u64(addr2, 0x70).value == dr7
+            ok = bool(k.GetThreadContext(th, addr2)) and (u64(addr2, 0x70).value ^ dr7) & 0xFFFF00FF == 0   # Windows adds reserved bits in 8..15
     k.ResumeThread(th)
     k.CloseHandle(th)
     return ok
@@ -134,7 +135,9 @@ def try_arm():
         write(base + PLAYERS + n * PLAYER_STRIDE + 0xC0, bytes([opts.acc]))
     write(accs[opts.acc] + 0x139, bytes([opts.chance]))
     print(f"B = {base:#x}: accessory {opts.acc:#x} on players {opts.players}, chance {opts.chance}")
-    targets[:] = [("player accessory", base + PLAYERS + 0xC0), ("accessory id", accs[opts.acc] + 0x140), ("accessory chance", accs[opts.acc] + 0x139)]
+    targets[:] = [("accessory id", accs[opts.acc] + 0x140), ("accessory chance", accs[opts.acc] + 0x139)]
+    if opts.player_byte:
+        targets.append(("player accessory", base + PLAYERS + 0xC0))
     return base
 
 

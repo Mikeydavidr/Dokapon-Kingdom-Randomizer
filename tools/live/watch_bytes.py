@@ -20,6 +20,7 @@ ap.add_argument("pid", type=int)
 ap.add_argument("seconds", type=float)
 ap.add_argument("--acc", type=lambda s: int(s, 0), default=0x13)
 ap.add_argument("--player", type=int, default=0)
+ap.add_argument("--player-byte", action="store_true", help="also watch the player's accessory byte (read every frame: slow)")
 ap.add_argument("--out", default=None)
 opts = ap.parse_args()
 
@@ -29,8 +30,9 @@ exec(src)                                       # read(), find_base(), acc_slots
 args = opts
 base = find_base()
 slot = acc_slots(base)[args.acc]
-targets = [("player accessory", base + PLAYERS + args.player * PLAYER_STRIDE + 0xC0),
-           ("accessory id", slot + 0x140), ("accessory chance", slot + 0x139)]
+targets = [("accessory id", slot + 0x140), ("accessory chance", slot + 0x139)]
+if args.player_byte:
+    targets.append(("player accessory", base + PLAYERS + args.player * PLAYER_STRIDE + 0xC0))
 exe = exe_base()
 print(f"B = {base:#x}; watching " + ", ".join(f"{n} @ {a:#x}" for n, a in targets))
 
@@ -70,7 +72,7 @@ def set_debug_regs(tid: int, on: bool) -> bool:
         ctypes.c_uint64.from_address(addr + 0x68).value = 0
         if k.SetThreadContext(th, addr):
             raw2, addr2 = context()
-            ok = bool(k.GetThreadContext(th, addr2)) and ctypes.c_uint64.from_address(addr2 + 0x70).value == dr7
+            ok = bool(k.GetThreadContext(th, addr2)) and (ctypes.c_uint64.from_address(addr2 + 0x70).value ^ dr7) & 0xFFFF00FF == 0   # Windows adds reserved bits in 8..15
     k.ResumeThread(th)
     k.CloseHandle(th)
     return ok
