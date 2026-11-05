@@ -20,6 +20,7 @@ build: build.bat (MSVC x64), then copy bin/dinput8.dll and dynspaces.txt into th
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <share.h>
 
 #define RVA_STATE  0x8A8408
 #define RVA_CURRENT_SPACE 0x8A81C0
@@ -394,7 +395,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
             *slash = 0;
         char path[MAX_PATH];
         sprintf_s(path, MAX_PATH, "%s\\dynspaces.log", folder);
-        fopen_s(&logfile, path, "w");
+        logfile = _fsopen(path, "w", _SH_DENYWR);   /* readable while the game runs */
         logmsg("dynspaces loaded");
         CreateThread(NULL, 0, worker, NULL, 0, NULL);
     }
