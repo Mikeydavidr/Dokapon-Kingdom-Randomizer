@@ -92,7 +92,7 @@ def thread_ids():
 
 
 class DebugEvent(ctypes.Structure):
-    _fields_ = [("code", wt.DWORD), ("pid", wt.DWORD), ("tid", wt.DWORD), ("u", ctypes.c_byte * 160)]
+    _fields_ = [("code", wt.DWORD), ("pid", wt.DWORD), ("tid", wt.DWORD), ("pad", wt.DWORD), ("u", ctypes.c_byte * 160)]   # the union is 8-byte aligned (offset 16)
 
 
 if not k.DebugActiveProcess(args.pid):
