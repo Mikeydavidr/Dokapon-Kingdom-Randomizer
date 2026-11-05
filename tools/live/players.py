@@ -80,7 +80,7 @@ def find_base() -> int:
             d, i = read(b, size), -1
             while (i := d.find(needle, i + 1)) >= 0:
                 base = b + i - NAME_AT
-                if i >= NAME_AT and read(base + 0x31A80 + 0x150 + 0x148, 1) == b"\x02":       # shield id 2 sits in its slot
+                if i >= NAME_AT and read(base + 0x31A80 + 0x150 + 0x148, 1) == b"\x01":       # the Wooden Shield is id 1, in slot 1
                     return base
         a = b + size
         if a <= b:
