@@ -24,6 +24,9 @@ ap.add_argument("--acc", type=lambda s: int(s, 0), default=0x13)
 ap.add_argument("--chance", type=int, default=100)
 ap.add_argument("--players", default="0,1")
 ap.add_argument("--player-byte", action="store_true", help="also watch player 0's accessory byte (read every frame: slow)")
+ap.add_argument("--exec", default="", help="comma list of code addresses (VA, hex) to break on; each hit prints the exe return addresses found on the stack")
+ap.add_argument("--event-id", action="store_true", help="on an exec hit also print the dword at [rcx+0x48] (the turn-event id for the dispatcher at 0x1400b4140)")
+ap.add_argument("--obj-write", default=None, help="VA of a function taking the event object in rcx: at its first hit, also watch writes to [rcx+0x48]")
 ap.add_argument("--out", default=None)
 opts = ap.parse_args()
 
@@ -65,8 +68,11 @@ for fn in (k.GetThreadContext, k.SetThreadContext):
 k.SuspendThread.argtypes = [wt.HANDLE]
 k.ResumeThread.argtypes = [wt.HANDLE]
 k.CreateToolhelp32Snapshot.restype = wt.HANDLE
-CTX_SIZE, CTX_DEBUG = 1232, 0x100011                 # CONTEXT_AMD64 | DEBUG_REGISTERS | CONTROL (Rip)
+CTX_SIZE, CTX_DEBUG = 1232, 0x100013                 # CONTEXT_AMD64 | DEBUG_REGISTERS | CONTROL (Rip) | INTEGER (Rcx)
 targets = []
+exec_abs = set()
+objw_abs = set()
+exec_at = {int(x, 16) for x in opts.exec.split(",") if x}     # code addresses: execute breakpoints instead of data watchpoints
 
 
 def context():
@@ -93,7 +99,7 @@ def set_debug_regs(tid: int, on: bool) -> bool:
         for i, (_, a) in enumerate(targets):
             if on:
                 u64(addr, 0x48 + 8 * i).value = a
-                dr7 |= (1 << (2 * i)) | (3 << (16 + 4 * i))
+                dr7 |= (1 << (2 * i)) | ((0 if a in exec_abs else 0xD if a in objw_abs else 3) << (16 + 4 * i))
         u64(addr, 0x70).value = dr7
         u64(addr, 0x68).value = 0
         if k.SetThreadContext(th, addr):
@@ -138,6 +144,9 @@ def try_arm():
     targets[:] = [("accessory id", accs[opts.acc] + 0x140), ("accessory chance", accs[opts.acc] + 0x139)]
     if opts.player_byte:
         targets.append(("player accessory", base + PLAYERS + 0xC0))
+    for va in sorted(exec_at):
+        exec_abs.add(exe_base_addr + va - 0x140000000)
+        targets.append((f"exec {va:#x}", exe_base_addr + va - 0x140000000))
     return base
 
 
@@ -148,6 +157,7 @@ armed_at = None
 armed_tids = set()
 last_try = 0.0
 exited = False
+new_target = False
 try:
     while True:
         now = time.time()
@@ -183,6 +193,25 @@ try:
                     for i, (name, _) in enumerate(targets):
                         if dr6 >> i & 1:
                             hits[(name, rip - exe_base_addr)].append(time.time() - armed_at)
+                            if name.startswith("exec"):
+                                rsp = u64(addr, 0x98).value
+                                stk = struct.unpack("<48Q", read(rsp, 48 * 8).ljust(48 * 8, b"\0"))
+                                ret = [f"{v - exe_base_addr + 0x140000000:#x}" for v in stk if exe_base_addr <= v < exe_base_addr + 0xA00000]
+                                rcx = u64(addr, 0x80).value
+                                evid = struct.unpack("<i", read(rcx + 0x48, 4).ljust(4, bytes(1)))[0] if opts.event_id else None
+                                print(f"{time.time() - armed_at:7.1f}s {name} tid {ev.tid} event {evid} rdx {u64(addr, 0x88).value & 0xffffffff:#x} ret {struct.unpack("<Q", read(rsp, 8).ljust(8, bytes(1)))[0] - exe_base_addr + 0x140000000:#x} stack: {' '.join(ret)}", flush=True)
+                                if opts.obj_write and int(opts.obj_write, 16) == int(name.split()[1], 16) and not objw_abs:
+                                    objw_abs.add(rcx + 0x48)
+                                    targets.append(("objw [rcx+0x48]", rcx + 0x48))
+                                    new_target = True
+                                u64(addr, 0x44).value |= 0x10000          # resume flag: do not re-trigger the same instruction
+                    for i, (name, ta) in enumerate(targets):
+                        if name.startswith("objw") and dr6 >> i & 1:
+                            val = struct.unpack("<i", read(ta, 4))[0]
+                            rsp = u64(addr, 0x98).value
+                            stk = struct.unpack("<48Q", read(rsp, 48 * 8).ljust(48 * 8, bytes(1)))
+                            ret = [f"{v - exe_base_addr + 0x140000000:#x}" for v in stk if exe_base_addr <= v < exe_base_addr + 0xA00000]
+                            print(f"{time.time() - armed_at:7.1f}s WRITE event id -> {val:#x} by instruction before {rip - exe_base_addr + 0x140000000:#x} stack: {' '.join(ret)}", flush=True)
                     u64(addr, 0x68).value = 0
                     k.SetThreadContext(th, addr)
                 if th:
@@ -190,6 +219,10 @@ try:
             elif exc not in (0x80000003, 0x80000004):
                 status = 0x80010001                            # DBG_EXCEPTION_NOT_HANDLED
         k.ContinueDebugEvent(ev.pid, ev.tid, status)
+        if new_target:
+            new_target = False
+            for t in set(thread_ids()) | armed_tids:
+                set_debug_regs(t, True)
 finally:
     if not exited:
         # clear every thread's watchpoints (verified, retried), answer anything still queued, then let go of the game
