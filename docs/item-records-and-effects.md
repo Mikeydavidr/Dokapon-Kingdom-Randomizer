@@ -166,10 +166,25 @@ Other shield-id sites seen: `0x140175405` (Dokapon, id 0x27, tests battle-char f
 
 - Weapon effects: the attacker function at `0x140178C50`, effect switch head at `0x140178CB5`/`0x140178CD2`, original byte table
   `0x179E38`. See `tools/testpatch/patch_exe.py` (docstring and constants) for the case-to-VA map and the redirected table.
-- Accessories: **(unverified)** scattered direct id compares, e.g. Mirror Necklace (`0x14`) around `0x140201415`, Dodge Necklace
-  (`0x15`) `0x1400EB5E1`, Angel Choker (`0x16`) `0x1400E6A9C`, Criminal Studs (`0x1F`, +30 stat when Wanted) `0x1401F1547`,
-  Wind Bracelet (`0x12`) `0x14017A62A`, Crystal Choker (`0x13`) `0x14010BB5F`. A helper at `0x1401EAA10(flags@char+0xC4, abilityId)`
-  answers some "ability flag" queries.
+- Accessories: no shared function; every effect is hard-wired at its own site, which tests the worn id (player `+0xC0`) itself.
+  Known sites: Mirror Necklace (`0x14`) around `0x140201415`, Dodge Necklace (`0x15`) `0x1400EB5E1`, Angel Choker (`0x16`)
+  `0x1400E6A9C`, Criminal Studs (`0x1F`, +30 stat when Wanted) `0x1401F1547`, Wind Bracelet (`0x12`) `0x14017A62A`, Squid Ring
+  (`0xD`) `0x1401BA1B9`, and the Crystal Choker (`0x13`) and Wallace Badge (`0x1E`) in the turn-start event picker `0x1401B1690`
+  (the Choker's compare is at `0x1401B1F96`; its message is chosen at `0x14010BB5F`). A helper at `0x1401EAA10(flags@char+0xC4,
+  abilityId)` answers some "ability flag" queries.
+
+### Where the proc chance comes from, by kind
+
+| | Effect chosen by | Chance comes from | Patch |
+|---|---|---|---|
+| Weapons | one switch on weapon id (`0x140178C50`) | literal per effect case | `patch_exe.py`: widen the id table to 1..67 and rewrite each case's first roll to read the weapon's chance byte (`+0x139`) |
+| Shields | one switch on shield id (`0x1401786D0`) | literal per effect case (the record byte is unused) | `patch_shield_effects.py`: route the three id reads through a remap table; an effect keeps its own odds |
+| Accessories | separate code at each effect's site | the record byte (`+0x139`) for Squid Ring `0x1401BA1B9`, Mirror Necklace `0x140201442`, Angel Choker `0x1400E6AB4`, Dodge Necklace `0x1400EB5EA`; **game-state int32 fields** for Crystal Choker (`B+0x746F8`, read at `0x1401B200D`) and Wallace Badge (`B+0x746FC`, read at `0x1401B1FA5`), default 10 each | `patch_accessory_chances.py`: replace those two loads with `mov r9d, <percent>` + nop |
+
+The fields `B+0x746E8/EC/F0/F4` (7, 25, 20, 20) beside them are per-class turn-start rolls, not accessories. The Choker's roll was found
+by watching the turn-event dispatcher (`0x1400B4140`, event id at object `+0x48`) and a write watch on that field: the picker
+`0x1401B1690` returns event `0x60` ("light up") after `roll % 100 < chance` (roll table `+0x4A7820`). Writing 100 to `B+0x746F8` live
+made the Choker proc every turn. The tools are `tools/live/players.py` and `watch_game.py --exec ... --obj-write ...`.
 
 ## 6. How this was found (to repeat or extend)
 
