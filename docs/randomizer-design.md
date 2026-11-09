@@ -203,6 +203,14 @@ Static scan of every instruction that reads an item id (`.text` of the current e
   - The game already has the messages for a failed break: "{name} failed to break anything!" (`0x48250`) and "{name} had nothing to
     break!" (`0x482DC`). An *Unbreakable* item can reuse the first one, so no new text is needed.
   - Ability shuffles (classes, spells) can move Rust or Waterfall around, so unbreakable gear stays relevant however they land.
+  - The user's observation is that the slot looks random (no pattern seen in a few occurrences). To test it, `tools/testpatch/make_start_abilities.py`
+    builds a hex mod (`dokapon_rando/start_abilities.py`) that starts every human with **Rust** (battle magic id 23, equipped byte `player+0xC1`,
+    known-magic bit in the dword at `+0x74`) and **Waterfall** (skill id 38, equipped skill byte `+0xC2`). Rust is a battle magic (its record
+    is in the spell table, next to Pickpocket and Swap); Waterfall is in the skill table beside the monster skills (Breath, Brimstone ...).
+    Both are static-only findings: the field meanings come from how the game's own loaders write them, and the hook has not been run.
+    Test: install the mod, start a new game, cast Rust and use Waterfall on a player with all three slots filled, repeat many times and count
+    which slot breaks. The game also sets collection bitsets (`B+0x3D8C` weapons, `+0x3D98` shields, `+0x3DA0` accessories) when equipment is
+    assigned; the stash design should keep those in mind.
   - Open: whether the choice of *which* slot breaks (weapon, shield or accessory) is random per ability. If so, an unbreakable item
     should make the ability pick among the other slots; otherwise it just fails.
 - **Saves are not a raw struct dump.** `SaveData/game%02d.dat` files are 5.6-9 KB, vary in size and have near-8-bit entropy
