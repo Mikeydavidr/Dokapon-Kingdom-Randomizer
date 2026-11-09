@@ -160,7 +160,7 @@ Static scan of every instruction that reads an item id (`.text` of the current e
     It runs inside a battle-script value fetch (compares a script id against `0x87`), so it is presentation or script selection
     keyed on the weapon id, not an effect. The weapon patch does not remap it, so a remapped weapon effect keeps its old *slot's* script.
   - `0x140182444`: `cmp dl, 0x1C` on the equipped weapon, then a **12% roll** (`cmp r8w, 0xC` at `0x14018249D`), then an event
-    (`0x15A`). Weapon 28 is the **Chi Knuckle**, so it has a hidden effect outside the effect switch that the weapon patch does not touch.
+    (`0x15A`). Weapon 28 is the **Chi Knuckle**, so it has a hidden effect outside the effect switch that the weapon patch does not touch. Its record chance byte is 12 (`0C`), and the battle message at `0x48348` reads "{user}'s Chi Knuckle caused {spell} to be used!", so it is a 12% **cast-a-spell** effect (same family as the Fire/Light/Wind weapons) handled in this separate place. Its shop text mentions stats and draining, which does not match that message; unresolved, needs a live look.
   - `0x1401EE2A0`: compares the weapon id against `0x32` (Deadly Dagger) and a level-like value; purpose not traced.
   - `0x140193910`, `0x1401993A1`, `0x14019BDD6`: copy the id into a display record (`+0x11C/+0x11D`), UI only.
 - **Accessory id readers (12).** One compare site (`0x14017A62A`, Wind Bracelet, already known) and display copies. The effect
