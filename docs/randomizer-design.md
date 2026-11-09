@@ -141,8 +141,24 @@ Known:
 - Shield effects are not just the dispatcher: the animation script reads the shield id (a value fetch at `0x1401717D6`). Any new
   id-read site we find needs the same remap.
 
+Static scan of every instruction that reads an item id (`.text` of the current exe; struct offsets `+0x14A` weapon, `+0x148` shield,
+`+0x140` accessory; the player-byte offsets `+0xBE/BF/C0` match far too many unrelated structs to be useful). Findings:
+- **Weapon id readers (11).** `0x140178CAA` is the effect switch (already patched). New:
+  - `0x1401730C3`: a **second weapon-id switch** (`id - 8`, range 0x32, byte table at `0x1731D0`, jump table `0x1731C0`, four cases).
+    It runs inside a battle-script value fetch (compares a script id against `0x87`), so it is presentation or script selection
+    keyed on the weapon id, not an effect. The weapon patch does not remap it, so a remapped weapon effect keeps its old *slot's* script.
+  - `0x140182444`: `cmp dl, 0x1C` on the equipped weapon, then a **12% roll** (`cmp r8w, 0xC` at `0x14018249D`), then an event
+    (`0x15A`). Weapon 28 is the **Chi Knuckle**, so it has a hidden effect outside the effect switch that the weapon patch does not touch.
+  - `0x1401EE2A0`: compares the weapon id against `0x32` (Deadly Dagger) and a level-like value; purpose not traced.
+  - `0x140193910`, `0x1401993A1`, `0x14019BDD6`: copy the id into a display record (`+0x11C/+0x11D`), UI only.
+- **Accessory id readers (12).** One compare site (`0x14017A62A`, Wind Bracelet, already known) and display copies. The effect
+  checks that do not use `+0x140` read the player byte `+0xC0` instead, so the accessory inventory has to come from the player-byte
+  sites and not from this scan.
+- **Equipped-id getters** (`0x140174810` weapon, `0x140174830` shield, `0x140174850` accessory; each takes the battle-character array,
+  index, stride `0x78`). They have 4 callers each and only test "is something equipped" (HUD), so they are **not** an interception point.
+
 Open, in the order to do them:
-1. **Static pass for every reader of the weapon, shield and accessory id** in `.text` (struct offsets `+0x14A`, `+0x148`, `+0x140`
+1. ~~**Static pass for every reader of the weapon, shield and accessory id**~~ (done for item structs, see above; the player-byte readers remain) in `.text` (struct offsets `+0x14A`, `+0x148`, `+0x140`
    on item structs, and the player bytes `+0xBE/+0xBF/+0xC0`). Output: a list of sites with a classification
    (effect code, script fetch, UI, shop, stat calc). Safe to do without the game.
 2. ~~**Where the action struct is filled.**~~ Found: the constructor at `0x140055650` zeroes the pointer fields `+0x10..+0x28`
