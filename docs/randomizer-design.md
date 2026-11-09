@@ -188,8 +188,22 @@ Static scan of every instruction that reads an item id (`.text` of the current e
 - Pickup prompt: the text lives in `stageBase_EN.DAT` ("Take equipment!" `0x46070`, "Throw away one piece of equipment!" `0x46194`,
   "Get rid of your current item for the X?" `0x4634C`). It is script-driven, not engine code, so changing the choice (keep both)
   is a script edit plus somewhere to store the extra item.
-- **Stash storage** is the main unknown: the player struct (`B+0x24A0`, stride `0x508`) is saved whole, so unused bytes in it could
-  hold a stash if there are enough; otherwise it needs a new save region. Not yet checked.
+- **The clearing code lives in two big event executors**, both keyed on the event object's id (`[object+0x48]`, the same object the
+  turn-event dispatcher uses): `0x14014ABF0..0x14014DD10` (one caller, `0x1401493AB`) holds the slot-clear switch, and
+  `0x1400E8F86..0x1400EA628` holds the name-copy-and-clear handlers that queue message event `0x131` (via `0x14010E970`). So breaking is
+  decided per event, not in one place; an *Unbreakable* check has to go at each clear (about 6 stores) or at the one choke point
+  we have not found. The deciding event ids are still unknown: the cheapest way to get them is a live write-watch on
+  `player+0xBE/BF/C0` while an enemy breaks gear (the existing `watch_game.py` does this and logs the event id).
+- **Saves are not a raw struct dump.** `SaveData/game%02d.dat` files are 5.6-9 KB, vary in size and have near-8-bit entropy
+  (compressed or encrypted; the first four bytes are `01 01 01 01`). Four player structs alone are `4 x 0x508` = 5 KB, so the save
+  is a field-by-field serialization. Consequence: a stash needs either a save-code patch, or to ride on a field that is already saved.
+- **Stash storage** is the main unknown, with three options:
+  1. *Piggyback on the consumable inventory* (no save change): add "stored weapon/shield/accessory" tokens as items that, when used,
+     swap with the equipped piece. Costs inventory slots (the game already forces "throw something away" when full) and needs new
+     item records plus a use script.
+  2. *Reuse unused saved bytes* in the player struct, if any exist (needs the serializer traced).
+  3. *Extend the save* with a new block (largest change; also affects online saves).
+  Recommendation: prototype option 1 first, since it needs no code in the serializer.
 
 Open, in the order to do them:
 1. ~~**Static pass for every reader of the weapon, shield and accessory id**~~ (done for item structs, see above; the player-byte readers remain) in `.text` (struct offsets `+0x14A`, `+0x148`, `+0x140`
