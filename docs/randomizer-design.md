@@ -194,6 +194,17 @@ Static scan of every instruction that reads an item id (`.text` of the current e
   decided per event, not in one place; an *Unbreakable* check has to go at each clear (about 6 stores) or at the one choke point
   we have not found. The deciding event ids are still unknown: the cheapest way to get them is a live write-watch on
   `player+0xBE/BF/C0` while an enemy breaks gear (the existing `watch_game.py` does this and logs the event id).
+- **What causes breaks (from the user):** abilities and punishments, such as the spell **Rust** and the ability **Waterfall**, each
+  breaking one piece of the opponent's equipment (the Rust-family text: "Breaks your opponent's equipment. Has no effect on monsters").
+  Both appear as records in `stageBase_EN.DAT` (Rust at `0x14EDC` in a spell table, Waterfall at `0x15C74` in a list of named
+  abilities beside Breath, Brimstone, Tornado, Tsunami and Thunder). Consequences for the design:
+  - Breaking is part of ability resolution, so the clear sites above are the right place for an *Unbreakable* check, and one check
+    there protects against every source (Rust, Waterfall, the weapon effects that "sometimes break" gear, and any new ability).
+  - The game already has the messages for a failed break: "{name} failed to break anything!" (`0x48250`) and "{name} had nothing to
+    break!" (`0x482DC`). An *Unbreakable* item can reuse the first one, so no new text is needed.
+  - Ability shuffles (classes, spells) can move Rust or Waterfall around, so unbreakable gear stays relevant however they land.
+  - Open: whether the choice of *which* slot breaks (weapon, shield or accessory) is random per ability. If so, an unbreakable item
+    should make the ability pick among the other slots; otherwise it just fails.
 - **Saves are not a raw struct dump.** `SaveData/game%02d.dat` files are 5.6-9 KB, vary in size and have near-8-bit entropy
   (compressed or encrypted; the first four bytes are `01 01 01 01`). Four player structs alone are `4 x 0x508` = 5 KB, so the save
   is a field-by-field serialization. Consequence: a stash needs either a save-code patch, or to ride on a field that is already saved.
