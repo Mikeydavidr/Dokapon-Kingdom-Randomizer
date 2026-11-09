@@ -28,6 +28,8 @@ b) **New effects.** The effect list can grow beyond the 22 weapon, 9 shield and 
    are small code routines added to a table-driven dispatcher.
 c) **Accessories on the same footing.** Accessories get the same randomization tiers, odds control and mixed-pool status as
    weapons and shields. This needs their per-site hard-wired checks replaced with one table (section 2.3).
+d) **Candidate new effects.** *Unbreakable* (the item never breaks; for weapons, shields and accessories). More to collect here as
+   ideas come up; each needs a hook (section 2.2) and a test.
 
 ### 1.2 Equipment
 
@@ -38,6 +40,16 @@ c) **Accessories on the same footing.** Accessories get the same randomization t
   its roaming monsters. Needs a power model (section 4).
 - **Shopkeeper/interior swap.** Enter the weapon shop but see the Magic Shop interior, selling weapons. Presentation (interior,
   keeper) is separate from stock, so this is mostly a mapping from shop to interior scene.
+
+### 1.2b Inventory and breakage
+
+- **Equipment inventory.** Today, picking up a new weapon, shield or accessory forces a choice between it and what you wear, and the
+  loser is thrown away. Add a stash so older gear can be kept and re-equipped, since the game breaks equipment often. Open
+  questions: where it is stored (the save has fixed fields, so this may need a new save block or reuse of unused ones), how a player
+  swaps (a menu entry), a size cap, and what happens to the stash on death or theft. Needs tracing of the pickup prompt and the
+  save layout (section 3).
+- **Unbreakable.** A new effect (section 1.1, item d) for each equipment kind that stops the item from breaking. Needs tracing of the break
+  roll (section 3).
 
 ### 1.3 Classes
 
@@ -156,6 +168,28 @@ Static scan of every instruction that reads an item id (`.text` of the current e
   sites and not from this scan.
 - **Equipped-id getters** (`0x140174810` weapon, `0x140174830` shield, `0x140174850` accessory; each takes the battle-character array,
   index, stride `0x78`). They have 4 callers each and only test "is something equipped" (HUD), so they are **not** an interception point.
+
+**Breakage and the pickup prompt** (static; nothing here has been watched in play):
+- Equipment is stored on the player as three id bytes (`+0xBE` weapon, `+0xBF` shield, `+0xC0` accessory; `+0xC1..+0xC3` are other
+  carried slots). "Breaking" is just writing 0 to the byte; there is **no durability counter**, so *Unbreakable* is a check in front of
+  a few stores, not a new system. Sites that clear a slot:
+  - `0x14014DA1E`..`0x14014DA91`: a switch on a script field (`[r14+0x75]` 1..8) that clears weapon (1), shield (2), accessory (3),
+    then `+0xC2`, `+0xC3`, and builds a result mask (1 = weapon, 2 = shield) for the message. Looks like the script op for "remove/break
+    this slot", used when an effect breaks someone's gear.
+  - `0x1400EA1F3`, `0x1400EA2CF`, `0x1400EA3AA`: a long handler that copies the item's name into a text variable, clears the slot
+    and raises message event `0x131`. This is the likely "X's Y broke!" path (the status message table has that line).
+  - `0x1401EB0B0` (9 callers): a generic "take things from a player" routine driven by flag bytes (`+0x24` weapon, `+0x25` shield,
+    `+0x26` accessory, ...). It skips special players (`player+0x4A6 > 0`). Probably theft/penalties rather than breakage.
+  - `0x14021BA9F`: clears the shield only, under a flags test; unidentified.
+  - `0x140132780`: not a break. It prices the equipped items at half their price for the total-assets screen.
+- The weapon effects that "sometimes break their weapon/shield/accessory/equipment" (spell and effect texts in `stageBase_EN.DAT`
+  near `0x17F07`-`0x1811F`) and the Break-equipment spell (`0x164F0`) all end in the sites above. To find which function decides
+  *whether* to break, trace from those spells' scripts or watch writes to `player+0xBE/BF/C0` live.
+- Pickup prompt: the text lives in `stageBase_EN.DAT` ("Take equipment!" `0x46070`, "Throw away one piece of equipment!" `0x46194`,
+  "Get rid of your current item for the X?" `0x4634C`). It is script-driven, not engine code, so changing the choice (keep both)
+  is a script edit plus somewhere to store the extra item.
+- **Stash storage** is the main unknown: the player struct (`B+0x24A0`, stride `0x508`) is saved whole, so unused bytes in it could
+  hold a stash if there are enough; otherwise it needs a new save region. Not yet checked.
 
 Open, in the order to do them:
 1. ~~**Static pass for every reader of the weapon, shield and accessory id**~~ (done for item structs, see above; the player-byte readers remain) in `.text` (struct offsets `+0x14A`, `+0x148`, `+0x140`
